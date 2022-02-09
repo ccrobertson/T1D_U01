@@ -35,7 +35,7 @@ checkLibMD5sum ${seqcore} "5125-NM"
 
 ### Create symlinks to fastq files
 ```bash
-createSymLinks () {
+createSymLinksATAC () {
   local target_dir=$1
   local link_dir=$2
   local sample=$3
@@ -44,11 +44,43 @@ createSymLinks () {
   ln -s --force ${target_dir}/${sample}/*R3_001.fastq.gz ${link_dir}/${sample}_R3_001.fastq.gz
 }
 
-target_dir=/lab/data/seqcore/5124-NM/ATAC
-link_dir=${data}/fastq_atac
-createSymLinks ${target_dir} ${link_dir} Sample_5124-NM-1-ATAC_a
-createSymLinks ${target_dir} ${link_dir} Sample_5124-NM-1-ATAC_b
+createSymLinksGEX () {
+  local target_dir=$1
+  local link_dir=$2
+  local sample=$3
+  ln -s --force ${target_dir}/${sample}/*R1_001.fastq.gz ${link_dir}/${sample}_R1_001.fastq.gz
+  ln -s --force ${target_dir}/${sample}/*R2_001.fastq.gz ${link_dir}/${sample}_R2_001.fastq.gz
+}
+
+
+#symlinks for ATAC
+for i in {1..8}; do
+  for lane in a b c d; do
+    sample=Sample_5124-NM-${i}-ATAC_${lane}
+    echo ${sample}
+    createSymLinksATAC "/lab/data/seqcore/5124-NM/ATAC" "${data}/fastq_atac" ${sample}
+  done
+done
+
+
+#symlinks for GEX
+for i in {1..8}; do
+  sample=Sample_5124-NM-${i}-3GEX
+  echo ${sample}
+  createSymLinksGEX "/lab/data/seqcore/5124-NM/GEX/fastqs_5124-NM" "${data}/fastq_gex" ${sample}
+done
 ```
+
+### Prepare nextflow input jsons
+```bash
+#cut -d"," -f 2 /lab/data/seqcore/5124-NM/ATAC/DemuxStats_5124-NM.csv | awk 'NR>1' | sed 's/"//g'
+cut -d"," -f 2 /lab/data/seqcore/5124-NM/GEX/DemuxStats_5124-NM.csv | awk 'NR>1' | sed 's/"//g;s/-3GEX//g' > ${freeze}/multiome_sample_list.tsv
+
+python ${scripts}/build_multiome_json.py --sample-file ${freeze}/multiome_sample_list.tsv --fastq-dir ${data}/fastq_atac --modality ATAC > ${freeze}/nf_atac_config.json
+python ${scripts}/build_multiome_json.py --sample-file ${freeze}/multiome_sample_list.tsv --fastq-dir ${data}/fastq_gex --modality GEX > ${freeze}/nf_gex_config.json
+
+```
+
 
 ### Create test sample
 ```bash
@@ -59,14 +91,13 @@ zcat Sample_5124-NM-1-ATAC_a_R3_001.fastq.gz | head -n 4000000 | gzip > Sample_t
 ```
 
 
-### Process multiome data
+### Process multiome ATAC data
 For each readgroup, three fastq files are required:
 * the first and second insert reads ('1' and '2')
 * and the read with the nuclear barcode ('index')
 
 ```bash
 module load golang/1.13.5 singularity/3.5.1
-export NXF_SINGULARITY_CACHEDIR=${WORK}/singularity
 
 #multiome snATAC-seq
 #cd ${freeze}/nf_results_atac
@@ -78,16 +109,15 @@ nohup nextflow run -params-file ${scripts}/nf_atac_config.json --results ${freez
 cd ${freeze}/nf_results_atac
 nohup nextflow run -params-file ${scripts}/nf_atac_config.json --results ${freeze}/nf_results_atac ${pipelines}/snATACseq-NextFlow/main.nf -resume
 
-
-#troubleshooting test run
-samtools view -c /lab/work/ccrober/T1D_U01/analysis/freeze1/nf_results_atac/work/20/6e24a3880ba63d21b85f5c7c346ce8/Sample_test-L001-hg38.bam
-2000024
-samtools view -c /lab/work/ccrober/T1D_U01/analysis/freeze1/nf_results_atac/work/06/4fcf1add3565c0d2b7a3be2442b17a/Sample_test-hg38.pruned.bam
-0
+```
 
 
+### Process multiome GEX data
+```bash
 
-#multiome snRNA-seq
+module load golang/1.13.5 singularity/3.5.1
+
+cd ${freeze}/nf_results_gex
 nextflow run -params-file library-config.json --results ${freeze}/nf_results_rna ${pipelines}/snRNAseq-NextFlow/main.nf
 ```
 

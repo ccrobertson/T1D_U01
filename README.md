@@ -5,31 +5,20 @@ collaborative project: Parker, Chen, and Collins labs
 ### Data location
 * Multiome: /lab/data/seqcore/5124-NM
 * 5' RNA-seq: /lab/data/seqcore/5125-NM
+* Genotyping: /lab/data/nih/2022_02_16_T1D_genotypes
 
 * From Ricardo's paper
 * * Genotyping: /lab/data/nih/2021_07_02_T1D_genotypes/chip_genotypes
 * * snRNA-seq libraries:
 * * snATAC-seq libraries:
+* * code for cvb4 gene quantification: Ricardo_code/notebooks/cvb4_counts.Rmd
 
-
-### Universal environmental variables
+### Environmental variables
 ```bash
-export pipelines=/lab/work/ccrober/pipelines
 export WORK=/lab/work/ccrober/T1D_U01
 export freeze=${WORK}/results/freeze1
-export scripts=${WORK}/scripts
-export data=${WORK}/data
-export resources=${WORK}/resources
-```
-
-### Copy code
-```bash
-mkdir -p ${resources}/Ricardo_code
-rsync -r -v /home/albanus/analyses/2020_nih_islets_sn_t1d/commands ${resources}/Ricardo_code
-rsync -r -v /home/albanus/analyses/2020_nih_islets_sn_t1d/src ${resources}/Ricardo_code
-rsync -r -v /home/albanus/analyses/2020_nih_islets_sn_t1d/scripts ${resources}/Ricardo_code
-rsync -r -v /home/albanus/analyses/2020_nih_islets_sn_t1d/notebooks ${resources}/Ricardo_code
-
+# export data=${WORK}/data
+# export resources=${WORK}/resources
 ```
 
 ### Check md5
@@ -86,17 +75,6 @@ done
 ```
 
 
-
-### Prepare nextflow input jsons
-```bash
-#cut -d"," -f 2 /lab/data/seqcore/5124-NM/ATAC/DemuxStats_5124-NM.csv | awk 'NR>1' | sed 's/"//g'
-cut -d"," -f 2 /lab/data/seqcore/5124-NM/GEX/DemuxStats_5124-NM.csv | awk 'NR>1' | sed 's/"//g;s/-3GEX//g' > ${freeze}/multiome_sample_list.tsv
-
-python ${scripts}/build_multiome_json.py --sample-file ${freeze}/multiome_sample_list.tsv --fastq-dir ${data}/fastq_atac --modality ATAC > ${freeze}/nf_atac_config.json
-python ${scripts}/build_multiome_json.py --sample-file ${freeze}/multiome_sample_list.tsv --fastq-dir ${data}/fastq_gex --modality GEX > ${freeze}/nf_gex_config.json
-```
-
-
 ### Create small test samples
 ```bash
 #One million reads
@@ -123,70 +101,39 @@ zcat Sample_5124-NM-1-3GEX_R2_001.fastq.gz | head -n 4000 | gzip > Sample_test_x
 ```
 
 
+### Prepare nextflow input jsons
+```bash
+#cut -d"," -f 2 /lab/data/seqcore/5124-NM/ATAC/DemuxStats_5124-NM.csv | awk 'NR>1' | sed 's/"//g'
+cut -d"," -f 2 /lab/data/seqcore/5124-NM/GEX/DemuxStats_5124-NM.csv | awk 'NR>1' | sed 's/"//g;s/-3GEX//g' > ${freeze}/multiome_sample_list.tsv
+
+python ${scripts}/build_multiome_json.py --sample-file ${freeze}/multiome_sample_list.tsv --fastq-dir ${data}/fastq_atac --modality ATAC > ${freeze}/nf_atac_config.json
+python ${scripts}/build_multiome_json.py --sample-file ${freeze}/multiome_sample_list.tsv --fastq-dir ${data}/fastq_gex --modality GEX > ${freeze}/nf_gex_config.json
+```
+
+
+
 ### Process multiome ATAC data
 For each readgroup, three fastq files are required:
 * the first and second insert reads ('1' and '2')
 * and the read with the nuclear barcode ('index')
 ```bash
 module load golang/1.13.5 singularity/3.5.1
-
-run=nf_atac_test2
-cd ${freeze}/${run}_results
-nohup nextflow run -resume -params-file ${freeze}/${run}_config.json --results ${freeze}/${run}_results ${pipelines}/snATACseq-NextFlow/main.nf
-
-run=nf_atac
-cd ${freeze}/${run}_results
-nohup nextflow run -resume -params-file ${freeze}/${run}_config.json --results ${freeze}/${run}_results ${pipelines}/snATACseq-NextFlow/main.nf
-
-
-
-## Exploring what caused job to fail
-#the full run made it through alignment but then failed during pruning and/or peak calling
 cd ${freeze}/nf_atac_results
-grep -l "CANCELLED" work/*/*/.command.log > failed_logs
-while read -r line;
-do
-  echo ${line};
-  head ${line};
-  echo " ";
-  tail ${line};
-  echo " ";
-  echo " ";
-  echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
-done < failed_logs
-
-#Seems like macs2 ran out of memory at 2:03 AM which triggered all other jobs to be cancelled at 2:06 AM
-#cd ${freeze}/nf_atac_results
-#tail work/02/f4b069320e6e8a4d528d3ce5eab84b/.command.log
-# INFO  @ Sat, 12 Feb 2022 01:41:13: #3 Pre-compute pvalue-qvalue table...
-# slurmstepd-wolverine: error: Job 13406085 exceeded memory limit (10860173 > 8192000), being killed
-# slurmstepd-wolverine: error: Exceeded job memory limit
-# slurmstepd-wolverine: error: *** JOB 13406085 ON wolverine CANCELLED AT 2022-02-12T02:03:03 ***
-
-# #what version of macs2 does the pipeline use?
-# singularity exec /lab/work/ccrober/singularity-cache/porchard-default-general-20220107.img macs2 --version
-# macs2 2.2.7.1
-# singularity exec /lab/work/ccrober/singularity-cache/porchard-default-general-20220107.img macs2 callpeak --help
+nohup nextflow run -resume -params-file ${freeze}/nf_atac_config_test.json --results ${freeze}/nf_atac_results pipelines/snATACseq-NextFlow/main.nf
+nohup nextflow run -resume -params-file ${freeze}/nf_atac_config.json --results ${freeze}/nf_atac_results pipelines/snATACseq-NextFlow/main.nf
 ```
 
 
 ### Process multiome GEX data
 ```bash
 module load golang/1.13.5 singularity/3.5.1
-
-run=nf_gex_test
-cd ${freeze}/${run}_results
-nohup nextflow run -resume -params-file ${freeze}/${run}_config.json --chemistry multiome --results ${freeze}/${run}_results ${pipelines}/snRNAseq-NextFlow/main.nf
-
-#Can find starsolo QC info for gene-level counts here:
-#starsolo/Sample_test-hg38/Sample_test-hg38.Solo.out/Gene/Summary.csv
-
-run=nf_gex
-cd ${freeze}/${run}_results
-nohup nextflow run -resume -params-file ${freeze}/${run}_config.json --chemistry multiome --results ${freeze}/${run}_results ${pipelines}/snRNAseq-NextFlow/main.nf
+cd ${freeze}/nf_gex_results
+nohup nextflow run -resume -params-file ${freeze}/nf_gex_config_test.json --chemistry multiome --results ${freeze}/nf_gex_results pipelines/snRNAseq-NextFlow/main.nf &
+nohup nextflow run -resume -params-file ${freeze}/nf_gex_config.json --chemistry multiome --results ${freeze}/nf_gex_results pipelines/snRNAseq-NextFlow/main.nf &
 ```
 
-Checking to see if any reads align to CVB4 viral genome
+
+### Checking to see if any reads align to CVB4 viral genome
 ```bash
 cd ${freeze}/nf_gex_results/starsolo/Sample_5124-NM-1-hg38
 samtools index Sample_5124-NM-1-hg38.Aligned.sortedByCoord.out.bam
@@ -194,14 +141,78 @@ samtools view Sample_5124-NM-1-hg38.Aligned.sortedByCoord.out.bam AF311939.1
 ```
 
 
-### Filtering nuclei
+### Downstream multiome pipeline
 ```bash
-snakemake -kpr -j 500 -s src/multiome.smk --configfile src/multiome.yml --cluster-config src/cluster.config.yml --cluster "sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable" --cluster-status slurm_status.py 2>&1
+mamba activate snakemake
+cd ${WORK}
+bash commands.sh
 
+snakemake all -n --jobname "islets.{jobid}" --jobs 100 \
+		--keep-going \
+		--rerun-incomplete \
+		--snakefile workflow/src/multiome.smk \
+		--configfile workflow/src/multiome.yaml \
+		--use-conda \
+		--printshellcmds \
+		--cluster-config workflow/envs/cluster.yaml \
+		--cluster "sbatch --output {cluster.output} --time {cluster.time} --mem {cluster.mem} --ntasks {cluster.ntasks} --cpus-per-task {cluster.cpus}" \
+		> logs/snakemake.log 2>&1 &
+```
+
+## Jobs to keep
+date            rule                                                     wildcards jobid   slurmid
+31  Thu Apr 21 11:38:22 2022        dropkick       method=otsu, min_genes=30, sample=Sample_5124-NM-2-hg38    45  13710107
+1   Thu Apr 21 11:38:20 2022        dropkick       method=otsu, min_genes=50, sample=Sample_5124-NM-2-hg38    46  13710077 Finished
+6   Thu Apr 21 11:38:21 2022        dropkick  method=multiotsu, min_genes=30, sample=Sample_5124-NM-2-hg38    47  13710082
+11  Thu Apr 21 11:38:21 2022        dropkick  method=multiotsu, min_genes=50, sample=Sample_5124-NM-2-hg38    48  13710087
+2   Thu Apr 21 11:38:21 2022        dropkick  method=multiotsu, min_genes=50, sample=Sample_5124-NM-5-hg38    60  13710078 RUNNING
+
+
+### WHAT DO I WANT TO DO?
+1. create "nuclei" and "empty" GEX count matrices
+  input: count matrix, nuclei barcode list, empty barcode list, doublet barcode list
+  output: counts_nuclei.rds, counts_empty.rds
+2. correct for ambient contamination in GEX
+  input: counts_nuclei.rds, counts_empty.rds
+  output: counts_nuclei_decontaminated.rds (result$decontXcounts)
+3. barcode clustering on GEX (LIGER - http://htmlpreview.github.io/?https://github.com/welch-lab/liger/blob/master/vignettes/Integrating_multi_scRNA_data.html)
+  input: counts_nuclei_decontaminated.rds  (and maybe also run on counts_nuclei.rds  for comparison), will have one count matrix per sample, which we will read into a list and integrate
+  output: integrated umap across samples, clusters (barcode lists for each cluster)
+  NOTE: once we have 5' GEX bam files, will want to do cross modality integration using http://htmlpreview.github.io/?https://github.com/welch-lab/liger/blob/master/vignettes/Integrating_scRNA_and_scATAC_data.html
+
+For each cell type (pseudobulk analyses):
+  4. generate atac-seq bam files using cluster barcode lists
+  5. generate atac-seq peak calls and signal tracks
+  6. generate pseudobulk count matrices
+    - ATAC-seq: sample x peak
+    - 3' GEX: sample x gene
+    - 5' GEX: sample x tCRE (can further break into TSS proximal and distal)
+  7. run paired differental analysis by condition/treatment
+    -  Feature ~ subject + CVB4 + cytokine
+  8. run caQTL, eQTL, tCRE analysis
+
+
+### NEXT STEPS - Integrating across cell types and/or modalities
+- Linking ATAC peaks to genes (single nucleus analysis) - Do nuclei with higher expression of gene X have more accessibility at peak Y? Existing tools?
+- Linking peak/gene pairs to tCREs (pseudobulk analysis across individuals and/or cell types?)
 
 
 
 ### Process 5' scRNA-seq
 ```bash
 scafe.workflow.sc.solo --help
+```
+
+
+### Genotype imputation
+```bash
+snakemake all --jobname "impute.{jobid}" --jobs 100 \
+		--keep-going \
+		--rerun-incomplete \
+		--snakefile workflow/src/imputation.smk \
+		--configfile workflow/src/imputation.yaml \
+		--printshellcmds \
+		--cluster-config workflow/envs/cluster.yaml \
+		--cluster "sbatch --output {cluster.output} --time {cluster.time} --mem {cluster.mem} --ntasks {cluster.ntasks} --cpus-per-task {cluster.cpus}" \
+		> logs/snakemake_imputation.log 2>&1 &
 ```

@@ -1,7 +1,0 @@
-__default__:
-  time: '01:00:00'
-  mem: 4G
-  N: 1
-  threads: 1
-  name: smk.{rule}.{wildcards}.JOBNAME
-  output: smk.{rule}.{wildcards}.log

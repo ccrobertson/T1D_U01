@@ -1,0 +1,18 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.{rule}.{wildcards}.out"
+  time: "4:00:00"
+
+#raw_fastqc:
+#  mem: "500M"
+#  time: "2:00:00"
+
+dropkick:
+   cpus: "2"
+   mem: "150G"
+
+dropkick_plots:
+   mem: "20G"

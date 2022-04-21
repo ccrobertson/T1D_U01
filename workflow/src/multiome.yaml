@@ -1,0 +1,45 @@
+results: "results/freeze1"
+samples:
+  - Sample_5124-NM-1-hg38
+  - Sample_5124-NM-2-hg38
+  - Sample_5124-NM-3-hg38
+  - Sample_5124-NM-4-hg38
+  - Sample_5124-NM-5-hg38
+  - Sample_5124-NM-6-hg38
+  - Sample_5124-NM-7-hg38
+  - Sample_5124-NM-8-hg38
+
+autosomes: "resources/hg38/hg38_autosomes.txt"
+blacklist: "resources/hg38/ENCFF356LFX.bed"
+
+# Barcode filtering
+# atac_qc_file: "/lab/work/albanus/2020_nih_islets_sn_t1d_processing/\
+#                downstream/downstream/nucleus-qc/metrics.txt"
+# dropletUtils_rna: "work/dropletUtils/emptyDrops_rna.txt"
+# mitochondrial_knees: "data/mitochondrial_pct_knees.txt"
+# mitochondrial_knees_rna: "data/mitochondrial_pct_knees.rna.txt"
+# archr_doublets: "work/archr_all_samples_134-5/doublets.txt"
+
+# # First-pass clustering data for DecontX
+# cluster_info: "work/liger_all_samples_134-5/custom_rds/\
+#                seurat_standard_workflow_for_decontx.txt"
+
+#Min number of reads
+umi_min: 1000
+hqaa_min: 1000
+
+#Max number of reads (as a percentile)
+pct_max_gex: 1.0 # coverage percentile ceiling after filtering for umi_min
+pct_max_atac: 1.0  # coverage percentile ceilling after filtering hqaa_min
+
+#Mitochondrial filters
+mt_max_gex: 0.1
+mt_max_atac: 0.1
+
+#GEX-specific filters
+#min_genes: 500
+
+#ATAC-specific filters
+tss_min: 4
+tss_max: 99
+autosome_max: 0.13  # max fraction from a single autosome

@@ -12,7 +12,10 @@ __default__:
 
 dropkick:
    cpus: "2"
-   mem: "150G"
+   mem: "50G"
 
 dropkick_plots:
    mem: "20G"
+
+decontx:
+   mem: "10G"

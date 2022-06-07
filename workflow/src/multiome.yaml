@@ -1,4 +1,5 @@
-results: "results/freeze1"
+results: "results/multiome"
+resources: "resources"
 samples:
   - Sample_5124-NM-1-hg38
   - Sample_5124-NM-2-hg38

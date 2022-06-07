@@ -3,3 +3,8 @@ data*
 resources*
 logs*
 pipelines*
+workflow/old*
+workflow/envs/*.sif
+workflow/envs/*.simg
+workflow/Ricardo_code*
+workflow/scripts/__pycache__*

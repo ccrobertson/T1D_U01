@@ -1,5 +1,4 @@
-## Filtering nuclei
-snakemake all --jobname "islets.{jobid}" --jobs 100 \
+snakemake all -n --jobname "islets.{jobid}" --jobs 100 \
 		--keep-going \
 		--rerun-incomplete \
 		--snakefile workflow/src/multiome.smk \

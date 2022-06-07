@@ -23,7 +23,7 @@ option_list <- list(
     c("--barcodes_empty"), type = "character", help = "File containing multiome barcodes from empty droplets."
   ),
   make_option(
-    c("--barcodes_doublets"), type = "character", help = "File containing multiome barcodes from doublets (as inferred by amulet)."
+    c("--barcodes_doublets"), type = "character", default=NULL, help = "File containing multiome barcodes from doublets (as inferred by amulet)."
   ),
   make_option(
     c("--counts_nuclei"), type = "character", help = "Output file name for storing quality nuclei counts matrix (dgCMatrix format)."
@@ -53,7 +53,7 @@ matrix <- read10X(sample.dirs =c(opts$input_10x_dir), sample.names = c("dummy_na
 ### Read in barcode lists
 barcodes_nuclei = read.table(opts$barcodes_nuclei, header=TRUE)$barcode_gex
 barcodes_empty = read.table(opts$barcodes_empty, header=TRUE)$barcode_gex
-barcodes_doublets = scan(opts$barcodes_doublets, what="character")
+#barcodes_doublets = scan(opts$barcodes_doublets, what="character")
 
 ### Extract protein coding genes only
 protein_coding_genes = read.table("resources/hg38/hg38.refGene.tss.bed.gz")$V4
@@ -61,7 +61,8 @@ protein_coding_genes = protein_coding_genes[protein_coding_genes %in% rownames(m
 matrix_pc = matrix[protein_coding_genes,]
 
 ### Extract matrix for quality nuclei
-barcodes_to_keep = barcodes_nuclei[!barcodes_nuclei %in% barcodes_doublets]
+#barcodes_to_keep = barcodes_nuclei[!barcodes_nuclei %in% barcodes_doublets]
+barcodes_to_keep = barcodes_nuclei
 matrix_nuclei = matrix_pc[,barcodes_to_keep]
 
 ### Extract matrix for empty droplets

@@ -25,7 +25,7 @@ args = parser.parse_args()
 outdir = args.outdir
 
 ## Read in AnnData object
-print("Reading h5ad file.")
+print("Reading 10X GEX data.")
 ad = sc.read_10x_mtx(args.indir, make_unique=True)
 #ad = sc.read_10x_mtx("results/freeze1/dropkick/Sample_test-hg38/dropkick-in")
 #ad = sc.read_10x_mtx("results/freeze1/dropkick/Sample_5124-NM-1-hg38/dropkick-in")

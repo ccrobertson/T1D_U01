@@ -13,6 +13,11 @@ collaborative project: Parker, Chen, and Collins labs
 * * snATAC-seq libraries:
 * * code for cvb4 gene quantification: Ricardo_code/notebooks/cvb4_counts.Rmd
 
+* Code from Arushi: /lab/work/arushiv/muscle-sn/analyses_hg3/cluster_sample_count_matrices/scripts/
+* * main.nf (or sample.nf) - generating cell type specific ATAC-seq peak calls
+* * quantify.nf - generate barcode x feature count matrix for ATAC-seq
+* *
+
 ### Environmental variables
 ```bash
 export WORK=/lab/work/ccrober/T1D_U01
@@ -20,6 +25,15 @@ export freeze=${WORK}/results/freeze1
 # export data=${WORK}/data
 # export resources=${WORK}/resources
 ```
+
+
+### Batch data
+```bash
+awk -v OFS="\t" 'NR==1 {print "Libname", $0} NR>1 {print "Sample_5124-"$1"-hg38",$0}' Sample_islet_list_for_multiomics_Batches_long_format.tsv > Sample_islet_list_for_multiomics_Batches_long_format_with_libname.tsv
+
+Rscript workflow/scripts/build_batch_json.R --batchfile Sample_islet_list_for_multiomics_Batches_long_format_with_libname.tsv
+```
+
 
 ### Check md5
 ```bash
@@ -98,6 +112,15 @@ zcat Sample_5124-NM-1-3GEX_R2_001.fastq.gz | head -n 4000000 | gzip > Sample_tes
 cd ${data}/fastq_gex
 zcat Sample_5124-NM-1-3GEX_R1_001.fastq.gz | head -n 4000 | gzip > Sample_test_xs_R1_001.fastq.gz
 zcat Sample_5124-NM-1-3GEX_R2_001.fastq.gz | head -n 4000 | gzip > Sample_test_xs_R2_001.fastq.gz
+
+
+#One thousand droplets (i.e., barcodes)
+barcodes_gex=${freeze}/barcodes_gex_1000.txt
+bam_gex=${freeze}/nf_gex_results/prune/Sample_5124-NM-2-hg38.before-dedup.bam
+bam_gex_1000=${freeze}/nf_gex_results/prune/Sample_test2-hg38.before-dedup.bam
+awk 'NR>1' ${freeze}/cross_modality_qc/Sample_5124-NM-2-hg38/barcodes_nuclei.txt | head -n 100  | cut -d' ' -f 1 > ${barcodes_gex}
+singularity exec workflow/envs/general.simg samtools view -h -b -@ 10 -D CB:${barcodes_gex} ${bam_gex} > ${bam_gex_1000}
+
 ```
 
 
@@ -159,13 +182,6 @@ snakemake all -n --jobname "islets.{jobid}" --jobs 100 \
 		> logs/snakemake.log 2>&1 &
 ```
 
-## Jobs to keep
-date            rule                                                     wildcards jobid   slurmid
-31  Thu Apr 21 11:38:22 2022        dropkick       method=otsu, min_genes=30, sample=Sample_5124-NM-2-hg38    45  13710107
-1   Thu Apr 21 11:38:20 2022        dropkick       method=otsu, min_genes=50, sample=Sample_5124-NM-2-hg38    46  13710077 Finished
-6   Thu Apr 21 11:38:21 2022        dropkick  method=multiotsu, min_genes=30, sample=Sample_5124-NM-2-hg38    47  13710082
-11  Thu Apr 21 11:38:21 2022        dropkick  method=multiotsu, min_genes=50, sample=Sample_5124-NM-2-hg38    48  13710087
-2   Thu Apr 21 11:38:21 2022        dropkick  method=multiotsu, min_genes=50, sample=Sample_5124-NM-5-hg38    60  13710078 RUNNING
 
 
 ### WHAT DO I WANT TO DO?
@@ -195,6 +211,46 @@ For each cell type (pseudobulk analyses):
 ### NEXT STEPS - Integrating across cell types and/or modalities
 - Linking ATAC peaks to genes (single nucleus analysis) - Do nuclei with higher expression of gene X have more accessibility at peak Y? Existing tools?
 - Linking peak/gene pairs to tCREs (pseudobulk analysis across individuals and/or cell types?)
+
+
+### Split barcodes by origin individual
+# NOTE:
+# NM-1, NM-2, NM-3, and NM-4 pooled 5 individuals
+# NM-5, NM-6, NM-7, and NM-8 pooled 6 individuals
+#
+# Number of individual in the pool may influence input parameter k?
+```bash
+## get common variants files
+wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=13aebUpEKrtjliyT9rYzRijtkNJVUk5F_' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=13aebUpEKrtjliyT9rYzRijtkNJVUk5F_" -O common_variants_grch38.vcf && rm -rf /tmp/cookies.txt
+## fix contig name
+awk '$1 ~ /^#/ {print $0} $1 !~ /^#/ {print "chr"$0}' resources/common_variants_grch38.vcf > resources/common_variants_grch38_fixed.vcf
+
+## run on test bam with only 1000 barcodes
+sbatch --output=souporcell-1.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-1-hg38 5
+#sbatch workflow/scripts/run_souporcell.slurm Sample_5124-NM-2-hg38 5
+sbatch --output=souporcell-3.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-3-hg38 5
+sbatch --output=souporcell-4.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-4-hg38 5
+sbatch --output=souporcell-5.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-5-hg38 6
+sbatch --output=souporcell-6.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-6-hg38 6
+sbatch --output=souporcell-7.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-7-hg38 6
+sbatch --output=souporcell-8.log workflow/scripts/run_souporcell.slurm Sample_5124-NM-8-hg38 6
+
+```
+
+### Troubleshooting specifying study design in yaml
+```python
+
+import yaml
+
+with open("workflow/src/multiome.yaml") as file:
+    try:
+        config = yaml.safe_load(file)
+        print(config)
+    except yaml.YAMLError as exc:
+        print(exc)
+
+config = yaml.load("workflow/src/multiome.yaml")
+```
 
 
 

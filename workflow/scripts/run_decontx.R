@@ -29,10 +29,10 @@ opts <- parse_args(option_parser)
 
 
 # ### Testing
-# opts = list()
-# opts$counts_nuclei = "results/freeze1/decontx/Sample_5124-NM-1-hg38/counts_nuclei.rds"
-# opts$counts_empty = "results/freeze1/decontx/Sample_5124-NM-1-hg38/counts_empty.rds"
-# opts$outdir = "results/freeze1/decontx/Sample_5124-NM-1-hg38"
+#opts = list()
+#opts$counts_nuclei = "results/freeze1/decontx/Sample_5124-NM-1-hg38/counts_nuclei.rds"
+#opts$counts_empty = "results/freeze1/decontx/Sample_5124-NM-1-hg38/counts_empty.rds"
+#opts$outdir = "results/freeze1/decontx/Sample_5124-NM-1-hg38"
 
 # opts = list()
 # opts$counts_nuclei = "results/freeze1/decontx/Sample_test-hg38/counts_nuclei.rds"
@@ -55,7 +55,8 @@ x_empty = SingleCellExperiment(assays = list(counts = counts_empty))
 ### Run decontx -- unclear if the background option is actually being used here
 # Bug was supposedly fixed in dev branch: https://github.com/campbio/celda/issues/355
 cat("Running decontX.\n")
-results <- decontX(x = x_nuclei, background = x_empty, seed = 8675)
+#results <- decontX(x = x_nuclei, background = x_empty, seed = 8675)
+results <- decontX(x = x_nuclei, delta=c(10,100), estimateDelta = FALSE, seed = 8675)
 
 ### UMAP plots
 cat("Generating UMAP plots.\n")
@@ -70,14 +71,54 @@ png(file.path(opts$outdir, "umap_contamination.png"))
 plotDecontXContamination(results)
 dev.off()
 
+#INS = beta
+#GCG = alpha
+#SST = delta
+#KRT19 = ductal
+#CPA1 = acinar
+#PTPRC/CD45 = immune
 results <- logNormCounts(results)
-png(file.path(opts$outdir, "umap_marker_genes.png"))
+png(file.path(opts$outdir, "umap_marker_genes_pre.png"))
 plotDimReduceFeature(as.matrix(logcounts(results)),
     dim1 = umap[, 1],
     dim2 = umap[, 2],
-    features = c("INS", "GCG", "PTPRC", "CD3D", "CD3E", "CD3G"),
-    exactMatch = TRUE)
+    features = c("INS", "GCG","SST", "KRT19", "CPA1", "PTPRC", "HLA-A", "HLA-DPB1"),
+    exactMatch = TRUE,
+    useAssay = "counts"
+  )
 dev.off()
+
+png(file.path(opts$outdir, "umap_marker_genes_post.png"))
+plotDimReduceFeature(as.matrix(logcounts(results)),
+    dim1 = umap[, 1],
+    dim2 = umap[, 2],
+    features = c("INS", "GCG", "SST", "KRT19", "PRSS1", "PTPRC", "HLA-A", "HLA-DPB1"),
+    exactMatch = TRUE,
+    useAssay = "decontXcounts"
+  )
+dev.off()
+
+
+markers <- list(
+    beta_INS = c("INS"),
+    alpha_GCG = c("GCG"),
+    delta_SST = c("SST"),
+    ductal_KRT19 = c("KRT19"),
+    acinar_PRSS1 = c("PRSS1"),
+    immune_CD45 = c("PTPRC")
+  )
+png(file.path(opts$outdir, "barplots_marker_genes_pre.png"))
+plotDecontXMarkerPercentage(results,
+    markers = markers,
+    assayName = "counts")
+dev.off()
+
+png(file.path(opts$outdir, "barplots_marker_genes_post.png"))
+plotDecontXMarkerPercentage(results,
+    markers = markers,
+    assayName = "decontXcounts")
+dev.off()
+
 
 
 ### Saving results

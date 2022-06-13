@@ -5,6 +5,7 @@ snakemake all --jobname "islets.{jobid}" --jobs 100 \
 		--snakefile workflow/src/multiome.smk \
 		--configfile workflow/src/multiome.yaml \
 		--use-conda \
+		--use-singularity \
 		--printshellcmds \
 		--cluster-config workflow/envs/cluster.yaml \
 		--cluster "sbatch --output {cluster.output} --time {cluster.time} --mem {cluster.mem} --ntasks {cluster.ntasks} --cpus-per-task {cluster.cpus}" \

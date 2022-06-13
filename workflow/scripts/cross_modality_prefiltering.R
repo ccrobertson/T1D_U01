@@ -160,6 +160,10 @@ d = d[d$frac_mt_gex<1 & d$frac_mt_atac<1,]
 # Remove barcodes with 100% atac reads from one autosome
 d = d[d$max_fraction_reads_from_single_autosome<1,]
 
+#NEW STEP - remove droplets with dropkick score of zero
+d = d[d$dropkick_score>0,]
+
+
 cat("Barcode count after prefiltering:", nrow(d),"\n")
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -217,8 +221,6 @@ atac_metrics = list(
   tss = list(var="tss_enrichment", label="TSS enrichment in ATAC"),
   autosome = list(var="max_fraction_reads_from_single_autosome", label="Max fraction HQAA from single autosome")
 )
-
-
 
 make2DDensityPlot_with_lines = function(d, x, y) {
   #remove zeros

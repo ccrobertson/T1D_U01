@@ -32,12 +32,16 @@ rule all:
         #~~~~~~~~ dropkick_plots
         #expand(_results("dropkick_{method}_{min_genes}/{sample}/dropkick_score.png"), sample="Sample_5124-NM-2-hg38", method="multiotsu", min_genes=[100]),
         #expand(_results("dropkick_{method}_{min_genes}/{sample}/dropkick_score.png"), sample=samples, method="multiotsu", min_genes=[100]),
-        #~~~~~~~~ select_quality_nuclei
+        #~~~~~~~~ cross modality prefiltering
         #expand(_results("cross_modality_qc/{sample}/cross_modality_qc.txt"), sample="Sample_5124-NM-2-hg38"),
         #expand(_results("cross_modality_qc/{sample}/cross_modality_qc.txt"), sample=samples),
         #~~~~~~~~ amulet
         #expand(_results("amulet/{sample}/MultipletBarcodes_01.txt"), sample="Sample_5124-NM-2-hg38"),
-        expand(_results("amulet/{sample}/MultipletBarcodes_01.txt"), sample=samples),
+        #expand(_results("amulet/{sample}/MultipletBarcodes_01.txt"), sample=samples),
+        #~~~~~~~~ outlier detection
+        expand(_results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.h5ad"), sample=samples),
+        expand(_results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_QuantileFilter_label.png"), sample=samples),
+        expand(_results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_QuantileFilter_keep.png"), sample=samples),
         #~~~~~~~~ prepare_rna_data
         #expand(_results("decontx/{sample}/counts_nuclei.rds"), sample="Sample_5124-NM-2-hg38"),
         #expand(_results("decontx/{sample}/counts_nuclei.rds"), sample=samples),
@@ -131,7 +135,7 @@ rule cross_modality_prefiltering:
         min_reads = 100,
     shell:
         """
-        Rscript workflow/scripts/cross_modality_qc2.R \
+        Rscript workflow/scripts/cross_modality_prefiltering.R \
             --input_gex {input.gex} \
             --input_atac {input.atac} \
             --dropkick {input.dropkick} \
@@ -162,47 +166,62 @@ rule doublet_detection:
         AMULET.sh --bambc CB --bcidx 0 --cellidx 1 --iscellidx 2 {input.bam} {input.csv} {input.autosomes} {input.blacklist} {params.outdir} $HOME/bin
         """
 
+#NOTE: must generate H5AD file using this singularity container so that versions of scanpy are compatible
+rule anndata_for_qc:
+    input:
+        mtx = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx.gz"),
+        barcodes = _results("cross_modality_qc/{sample}/barcodes_prefiltered.txt"),
+        qcstats = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered.txt"),
+    output:
+        h5ad_file = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered.h5ad"),
+    params:
+        starsolodir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
+    conda:
+        "dropkick"
+    shell:
+        """
+        python workflow/scripts/prepare_anndata_qc.py --starsolodir {params.starsolodir} --barcodes {input.barcodes} --qcstats {input.qcstats} --h5ad_file {output.h5ad_file}
+        """
 
-# rule anndata:
-#     input:
-#         _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered.txt")
-#     output:
-#     shell:
-#
-#
-# rule wtsi_hgi_qc:
-#     input:
-#     output:
-#     shell:
-#         """
-#         singularity exec workflow/envs/nf_qc_cluster.sif workflow/scripts/filter_outlier_cells.py
-#         """
+rule outlier_detection:
+    input:
+        h5ad = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered.h5ad"),
+    output:
+        h5ad = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.h5ad"),
+        csv = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.csv"),
+    params:
+        metadata_columns = 'umis,hqaa,frac_mt_gex,frac_mt_atac,tss_enrichment,max_fraction_reads_from_single_autosome,dropkick_score',
+        contamination = 0.1,
+    conda:
+         "dropkick"
+    shell:
+        """
+        python workflow/scripts/outlier_detection.py \
+                --input_h5ad {input.h5ad} \
+                --metadata_columns {params.metadata_columns} \
+                --contamination {params.contamination} \
+                --output_h5ad {output.h5ad} \
+                --output_csv {output.csv}
+        """
 
-# rule cross_modality_qc_plots:
-#     input:
-#         gex = _results("nf_gex_results/qc/{sample}.qc.txt"),
-#         atac = _results("nf_atac_results/ataqv/single-nucleus/{sample}.txt"),
-#         #dropkick = _results("dropkick_otsu_50/{sample}/dropkick.csv"),
-#     output:
-#         # metrics = _results("cross_modality_qc/{sample}/cross_modality_qc.txt"),
-#         # barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
-#         # barcodes_empty = _results("cross_modality_qc/{sample}/barcodes_empty.txt"),
-#         _results("cross_modality_qc/{sample}/cross_modality_qc.txt"),
-#         #_results("cross_modality_qc/{sample}/cross_modality_qc_plot_status_dropkick.png"),
-#         _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
-#         _results("cross_modality_qc/{sample}/barcodes_empty.txt"),
-#         #amulet = _results("amulet/{sample}/amulet_input.csv"),
-#     params:
-#         outdir = _results("cross_modality_qc/{sample}"),
-#     shell:
-#         """
-#         Rscript workflow/scripts/cross_modality_qc.R \
-#             --input_gex {input.gex} \
-#             --input_atac {input.atac} \
-#             --outdir {params.outdir} \
-#             --sample {wildcards.sample} \
-#             --min_genes {params.min_genes}
-#         """
+rule cross_modality_visualization:
+    input:
+        csv = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.csv"),
+    output:
+        _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_dropkick_label.png"),
+        _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_IsolationForest_label.png"),
+        _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_QuantileFilter_label.png"),
+        _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_QuantileFilter_keep.png"),
+    params:
+        outdir = _results("cross_modality_qc/{sample}"),
+        sample = "{sample}",
+    shell:
+        """
+        Rscript workflow/scripts/cross_modality_visualization.R \
+            --input_csv {input.csv} \
+            --outdir {params.outdir} \
+            --sample {params.sample}
+        """
 
 
 

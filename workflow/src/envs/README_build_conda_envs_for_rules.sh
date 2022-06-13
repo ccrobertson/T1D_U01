@@ -20,9 +20,10 @@ mamba activate dropkick
 mamba install python=3.9
 mamba install scanpy
 mamba install scikit-image
+mamba install scikit-learn
 cd /lab/work/ccrober/sw/dropkick
 python setup.py install
-cd /lab/work/ccrober/T1D_U01/workflow/envs/
+cd /lab/work/ccrober/T1D_U01/workflow/src/envs/
 conda env export > dropkick.yaml
 
 

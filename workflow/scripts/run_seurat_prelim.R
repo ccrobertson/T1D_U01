@@ -18,6 +18,9 @@ option_list <- list(
     c("--counts"), type = "character", help = "Input quality nuclei counts matrix."
   ),
   make_option(
+    c("--resolution"), type = "numeric", help = "Input quality nuclei counts matrix."
+  ),
+  make_option(
     c("--outdir"), type = "character", help = "Output destination for clustering results."
   )
 )
@@ -31,10 +34,7 @@ opts <- parse_args(option_parser)
 # opts = list()
 # opts$counts = "results/freeze1/decontx/Sample_5124-NM-1-hg38/counts_nuclei.rds"
 # opts$outdir = "results/freeze1/seurat_prelim/Sample_5124-NM-1-hg38"
-
-# opts = list()
-# opts$counts = "results/freeze1/decontx/Sample_test-hg38/counts_nuclei.rds"
-# opts$outdir = "results/freeze1/seurat_prelim/Sample_test-hg38"
+# opts$resolution = 0.5
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Read data
@@ -142,7 +142,7 @@ dev.off()
 # Clustering nuclei
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 sobj <- FindNeighbors(sobj, dims = 1:20)
-sobj <- FindClusters(sobj, resolution = 0.5)
+sobj <- FindClusters(sobj, resolution = opts$resolution)
 
 #view clusters for first 5 nuclei
 head(Idents(sobj), 5)
@@ -161,6 +161,15 @@ saveRDS(sobj, file = file.path(opts$outdir,"seurat_obj.rds"))
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Save clusters
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+d = sobj[[]]
+d$barcode_gex = row.names(d)
+d$clusters = paste0("Seurat_",d$seurat_clusters)
+write.csv(d[,c("barcode_gex", "clusters")], file=file.path(opts$outdir, "seurat_clusters.csv"), row.names=FALSE, quote=FALSE)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Find/view marker genes
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #sobj.markers <- FindAllMarkers(sobj, min.pct = 0.25, logfc.threshold = 0.25, only.pos = TRUE)
@@ -171,7 +180,7 @@ saveRDS(sobj, file = file.path(opts$outdir,"seurat_obj.rds"))
 #     slice_max(n = 2, order_by = avg_log2FC)
 #
 
-known_markers = c("INS", "GCG", "SST", "KRT19", "PRSS1", "PTPRC")
+known_markers = c("INS", "GCG", "SST", "PPY", "KRT19", "PRSS1", "PTPRC", "VWF", "SDS", "RSGS5")
 
 png(file.path(opts$outdir,"seurat_markers_known_violin.png"), width=600, height=400)
 VlnPlot(sobj, features = known_markers)

@@ -38,21 +38,24 @@ rule all:
         #~~~~~~~~ amulet
         #expand(_results("amulet/{sample}/MultipletBarcodes_01.txt"), sample="Sample_5124-NM-2-hg38"),
         #expand(_results("amulet/{sample}/MultipletBarcodes_01.txt"), sample=samples),
-        #~~~~~~~~ outlier detection
-        expand(_results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.h5ad"), sample=samples),
-        expand(_results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_QuantileFilter_label.png"), sample=samples),
-        expand(_results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_QuantileFilter_keep.png"), sample=samples),
+        #~~~~~~~~ cross modality barcode filtering
+        #expand(_results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.h5ad"), sample=samples),
+        #expand(_results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_QuantileFilter_label.png"), sample=samples),
+        #expand(_results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_QuantileFilter_keep.png"), sample=samples),
+        #expand(_results("cross_modality_qc/{sample}/barcodes_nuclei.txt"), sample=samples),
         #~~~~~~~~ prepare_rna_data
-        #expand(_results("decontx/{sample}/counts_nuclei.rds"), sample="Sample_5124-NM-2-hg38"),
-        #expand(_results("decontx/{sample}/counts_nuclei.rds"), sample=samples),
-        #~~~~~~~~ decontx
-        #expand(_results("decontx/{sample}/counts_nuclei_decontaminated.rds"), sample="Sample_5124-NM-2-hg38"),
-        #expand(_results("decontx/{sample}/counts_nuclei_decontaminated.rds"), sample=samples),
+        #expand(_results("counts_by_sample_gex/{sample}/counts_nuclei.rds"), sample="Sample_5124-NM-2-hg38"),
+        #expand(_results("counts_by_sample_gex/{sample}/counts_nuclei.rds"), sample=samples),
+        #~~~~~~~~ preclustering and decontamination
+        #expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample="Sample_5124-NM-2-hg38"),
+        #expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample=samples),
+        # post decontx clustering
+        #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample="Sample_5124-NM-2-hg38"),
+        expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
         #~~~~~~~~ souporcell
         #expand(_results("souporcell/{sample}/clusters.tsv"), sample=samples),
-        #~~~~~~~~ seurat
-        #expand(_results("seurat_prelim/{sample}/seurat_obj.rds"), sample=samples),
-        #expand(_results("seurat_round2/{sample}/seurat_obj.rds"), sample=samples)
+        #~~~~~~~~ liger
+        _results("liger_clustering/liger_obj.rds"),
 
 #Some downstream programs require gzipped output, while others need it unzipped
 #so we will keep it available in both forms
@@ -204,10 +207,12 @@ rule outlier_detection:
                 --output_csv {output.csv}
         """
 
+
 rule cross_modality_visualization:
     input:
         csv = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered_flagoutliers.csv"),
     output:
+        _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
         _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_dropkick_label.png"),
         _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_IsolationForest_label.png"),
         _results("cross_modality_qc/{sample}/qc_grid_prefiltered_density_by_QuantileFilter_label.png"),
@@ -225,110 +230,199 @@ rule cross_modality_visualization:
 
 
 
+rule prepare_rna_counts:
+    input:
+        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv"),
+        barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
+        barcodes_empty = _results("cross_modality_qc/{sample}/barcodes_empty.txt"),
+    output:
+        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/genes.tsv"),
+        counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
+        counts_empty = _results("counts_by_sample_gex/{sample}/counts_empty.rds"),
+    params:
+        input_10x_dir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
+    conda:
+        "Renv"
+    shell:
+        """
+        ln -s --relative --force {params.input_10x_dir}/features.tsv {params.input_10x_dir}/genes.tsv
+        Rscript workflow/scripts/prepare_rna_counts.R \
+            --input_10x_dir {params.input_10x_dir} \
+            --barcodes_nuclei {input.barcodes_nuclei} \
+            --barcodes_empty {input.barcodes_empty} \
+            --counts_nuclei {output.counts_nuclei} \
+            --counts_empty {output.counts_empty}
+        """
 
 
-# rule prepare_rna_counts:
-#     input:
-#         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
-#         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv"),
-#         barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
-#         barcodes_empty = _results("cross_modality_qc/{sample}/barcodes_empty.txt"),
-#         #barcodes_doublets = _results("amulet/{sample}/MultipletBarcodes_01.txt"),
-#     output:
-#         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/genes.tsv"),
-#         counts_nuclei = _results("decontx/{sample}/counts_nuclei.rds"),
-#         counts_empty = _results("decontx/{sample}/counts_empty.rds"),
-#     params:
-#         input_10x_dir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
-#     conda:
-#         "Renv"
-#     shell:
-#         """
-#         ln -s --relative --force {params.input_10x_dir}/features.tsv {params.input_10x_dir}/genes.tsv
-#         Rscript workflow/scripts/prepare_rna_counts.R \
-#             --input_10x_dir {params.input_10x_dir} \
-#             --barcodes_nuclei {input.barcodes_nuclei} \
-#             --barcodes_empty {input.barcodes_empty} \
-#             --counts_nuclei {output.counts_nuclei} \
-#             --counts_empty {output.counts_empty}
-#         """
-#
-#
-# rule prelim_clustering:
-#     input:
-#         counts = _results("decontx/{sample}/counts_nuclei.rds"),
-#     output:
-#         clusters = _results("seurat_prelim/{sample}/seurat_obj.rds"),
-#     params:
-#         outdir = _results("seurat_prelim/{sample}"),
-#     shell:
-#         """
-#         Rscript workflow/scripts/run_seurat_prelim.R --counts {input.counts} --outdir {params.outdir}
-#         """
-#
-# rule decontx:
-#     input:
-#         counts_nuclei = _results("decontx/{sample}/counts_nuclei.rds"),
-#         counts_empty = _results("decontx/{sample}/counts_empty.rds"),
-#     output:
-#         _results("decontx/{sample}/counts_nuclei_decontaminated.rds"),
-#     conda:
-#         "Renv"
-#     params:
-#         outdir = _results("decontx/{sample}"),
-#     shell:
-#         """
-#         Rscript workflow/scripts/run_decontx.R \
-#             --counts_nuclei {input.counts_nuclei} \
-#             --counts_empty {input.counts_empty} \
-#             --outdir {params.outdir}
-#         """
-#
-#
-# rule second_clustering:
-#     input:
-#         counts = _results("decontx/{sample}/counts_nuclei_decontaminated.rds"),
-#     output:
-#         clusters = _results("seurat_round2/{sample}/seurat_obj.rds"),
-#     params:
-#         outdir = _results("seurat_round2/{sample}"),
-#     shell:
-#         """
-#         Rscript workflow/scripts/run_seurat_prelim.R --counts {input.counts} --outdir {params.outdir}
-#         """
-#
-# # rule liger:
-# #     input:
-# #         counts = _results("decontx/{sample}/counts_nuclei_decontaminated.rds"),
-# #     output:
-# #     shell:
-# #         """
-# #         Rscript run_liger.R \
-# #             --counts {input.counts} \
-# #         """
-#
-#
-# rule souporcell:
-#     input:
-#         bam=_results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-#         barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
-#         fasta=_resources("hg38/hg38_cvb4.fa"),
-#         common_variants=_resources("common_variants_grch38_fixed.vcf"),
-#     output:
-#         _results("souporcell/{sample}/clusters.tsv"),
-#     params:
-#         outdir = _results("souporcell/{sample}"),
-#         k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
-#         threads=10,
-#     shell:
-#         """
-#           singularity exec workflow/envs/souporcell_latest.sif workflow/scripts/souporcell_pipeline.py \
-#             -i {input.bam} \
-#             -b {input.barcodes} \
-#             -f {input.fasta} \
-#             -t {params.threads} \
-#             --cluster {params.k} \
-#             --common_variants {input.common_variants} \
-#             --skip_remap True \
-#             -o {params.outdir}
-#         """
+rule seurat_prelim:
+    input:
+        counts = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
+    output:
+        _results("seurat_prelim/{sample}/seurat_obj.rds"),
+        _results("seurat_prelim/{sample}/seurat_clusters.csv"),
+    params:
+        outdir = _results("seurat_prelim/{sample}"),
+        resolution = 0.1,
+    shell:
+        """
+        Rscript workflow/scripts/run_seurat_prelim.R \
+            --counts {input.counts} \
+            --resolution {params.resolution} \
+            --outdir {params.outdir}
+        """
+
+rule doublet_filtering:
+    input:
+        seurat_obj = _results("seurat_prelim/{sample}/seurat_obj.rds"),
+        doublets = _results("amulet/{sample}/MultipletBarcodes_01.txt"),
+        map = _results("cross_modality_qc/{sample}/cross_modality_qc.txt"),
+        counts =  _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
+    output:
+        counts = _results("counts_by_sample_gex/{sample}/counts_nuclei_no_doublets.rds"),
+        png = _results("seurat_prelim/{sample}/seurat_prelim_umap_doublets.png"),
+    shell:
+        """
+        Rscript workflow/scripts/doublet_filtering.R \
+            --seurat_obj {input.seurat_obj} \
+            --doublets {input.doublets} \
+            --map {input.map} \
+            --input_counts {input.counts} \
+            --output_counts {output.counts} \
+            --plotfile {output.png}
+        """
+
+
+rule decontx_prelim:
+    input:
+        counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei_no_doublets.rds"),
+        counts_empty = _results("counts_by_sample_gex/{sample}/counts_empty.rds"),
+        clusters = _results("seurat_prelim/{sample}/seurat_clusters.csv"),
+    output:
+        _results("decontx_prelim/{sample}/counts_low_contamination_raw.rds"),
+    params:
+        outdir = _results("decontx_prelim/{sample}"),
+        max_contamination = 0.3,
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/run_decontx.R \
+            --counts_nuclei {input.counts_nuclei} \
+            --counts_empty {input.counts_empty} \
+            --clusters {input.clusters} \
+            --max_contamination {params.max_contamination} \
+            --outdir {params.outdir}
+        """
+
+rule seurat_round2:
+    input:
+        counts = _results("decontx_prelim/{sample}/counts_low_contamination_raw.rds"),
+    output:
+        _results("seurat_round2/{sample}/seurat_obj.rds"),
+        _results("seurat_round2/{sample}/seurat_clusters.csv"),
+    params:
+        outdir = _results("seurat_round2/{sample}"),
+        resolution = 0.1,
+    shell:
+        """
+        Rscript workflow/scripts/run_seurat_prelim.R \
+            --counts {input.counts} \
+            --resolution {params.resolution} \
+            --outdir {params.outdir}
+        """
+
+
+rule decontx_round2:
+    input:
+        counts_nuclei = _results("decontx_prelim/{sample}/counts_low_contamination_raw.rds"),
+        counts_empty = _results("decontx_prelim/{sample}/counts_empty.rds"),
+        clusters = _results("seurat_round2/{sample}/seurat_clusters.csv"),
+    output:
+        results = _results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"),
+    conda:
+        "Renv"
+    params:
+        outdir = _results("decontx_round2/{sample}"),
+        max_contamination = 0.3,
+    shell:
+        """
+        Rscript workflow/scripts/run_decontx.R \
+            --counts_nuclei {input.counts_nuclei} \
+            --counts_empty {input.counts_empty} \
+            --clusters {input.clusters} \
+            --max_contamination {params.max_contamination} \
+            --outdir {params.outdir}
+        """
+
+
+rule seurat_round3:
+    input:
+        counts = _results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"),
+    output:
+        _results("seurat_round3/{sample}/seurat_obj.rds"),
+        _results("seurat_round3/{sample}/seurat_clusters.csv"),
+    params:
+        outdir = _results("seurat_round3/{sample}"),
+        resolution = 0.1,
+    shell:
+        """
+        Rscript workflow/scripts/run_seurat_prelim.R \
+            --counts {input.counts} \
+            --resolution {params.resolution} \
+            --outdir {params.outdir}
+        """
+
+
+rule liger_iNMF:
+    input:
+        count_matrices = expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample=samples),
+    output:
+        _results("liger_clustering/liger_obj.rds"),
+    params:
+        outdir = _results("liger_clustering"),
+    shell:
+        """
+        mkdir -p {params.outdir}
+        Rscript workflow/scripts/run_liger.R --outdir {params.outdir} {input.count_matrices}
+        """
+
+rule liger_clustering:
+    input:
+        liger_obj = _results("liger_clustering/liger_obj.rds"),
+    output:
+        _results("liger_clustering/umap_cluster_and_batch"),
+    params:
+        outdir = _results("liger_clustering"),
+    shell:
+        """
+        mkdir -p {params.outdir}
+        Rscript workflow/scripts/run_liger.R --outdir {params.outdir} {input.count_matrices}
+        """
+
+
+rule souporcell:
+    input:
+        bam=_results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+        barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
+        fasta=_resources("hg38/hg38_cvb4.fa"),
+        common_variants=_resources("common_variants_grch38_fixed.vcf"),
+    output:
+        _results("souporcell/{sample}/clusters.tsv"),
+    params:
+        outdir = _results("souporcell/{sample}"),
+        k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
+        threads=10,
+    shell:
+        """
+          singularity exec workflow/envs/souporcell_latest.sif workflow/scripts/souporcell_pipeline.py \
+            -i {input.bam} \
+            -b {input.barcodes} \
+            -f {input.fasta} \
+            -t {params.threads} \
+            --cluster {params.k} \
+            --common_variants {input.common_variants} \
+            --skip_remap True \
+            -o {params.outdir}
+        """

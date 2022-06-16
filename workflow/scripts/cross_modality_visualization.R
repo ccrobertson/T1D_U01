@@ -33,6 +33,7 @@ opts <- parse_args(option_parser)
 
 
 d = read.csv(opts$input_csv)
+d$barcode_gex = d$X
 d$IsolationForest_label = factor(d$IsolationForest_label, levels=c("True","False"), labels=c("Keep","Drop"))
 
 dropkick_score_thresh = quantile(d$dropkick_score, probs=0.1)
@@ -45,23 +46,27 @@ d$dropkick_label = factor(d$dropkick_score > dropkick_score_thresh, levels=c(TRU
 # Testing what happens if I just remove any nucleus with a QC metric in the bottom
 # 5th perentile of the distribution
 percentile_cutoff = 0.05
-umis_thresh = quantile(d$umis, probs=percentile_cutoff)
-hqaa_thresh = quantile(d$hqaa, probs=percentile_cutoff)
-frac_mt_gex_thresh = quantile(d$frac_mt_gex, probs=1-percentile_cutoff)
-frac_mt_atac_thresh = quantile(d$frac_mt_atac, probs=1-percentile_cutoff)
-max_fraction_reads_from_single_autosome_thresh = quantile(d$max_fraction_reads_from_single_autosome, probs=1-percentile_cutoff)
-tss_enrichment_thresh = quantile(d$tss_enrichment, probs=percentile_cutoff)
-dropkick_score_thresh = quantile(d$dropkick_score, probs=percentile_cutoff)
+thresholds = list()
+thresholds[["umis"]] = quantile(d$umis, probs=percentile_cutoff)
+thresholds[["hqaa"]] = quantile(d$hqaa, probs=percentile_cutoff)
+thresholds[["frac_mt_gex"]] = quantile(d$frac_mt_gex, probs=1-percentile_cutoff)
+thresholds[["frac_mt_atac"]] = quantile(d$frac_mt_atac, probs=1-percentile_cutoff)
+thresholds[["max_fraction_reads_from_single_autosome"]] = quantile(d$max_fraction_reads_from_single_autosome, probs=1-percentile_cutoff)
+thresholds[["tss_enrichment"]] = quantile(d$tss_enrichment, probs=percentile_cutoff)
+thresholds[["dropkick_score"]] = quantile(d$dropkick_score, probs=percentile_cutoff)
 d_filt = d %>%
-  filter(umis > umis_thresh,
-         hqaa > hqaa_thresh,
-         frac_mt_gex < frac_mt_gex_thresh,
-         frac_mt_atac < frac_mt_atac_thresh,
-         max_fraction_reads_from_single_autosome < max_fraction_reads_from_single_autosome_thresh,
-         tss_enrichment > tss_enrichment_thresh,
-         dropkick_score > dropkick_score_thresh)
+  filter(umis > thresholds[["umis"]],
+         hqaa > thresholds[["hqaa"]],
+         frac_mt_gex < thresholds[["frac_mt_gex"]],
+         frac_mt_atac < thresholds[["frac_mt_atac"]],
+         max_fraction_reads_from_single_autosome < thresholds[["max_fraction_reads_from_single_autosome"]],
+         tss_enrichment > thresholds[["tss_enrichment"]],
+         dropkick_score > thresholds[["dropkick_score"]])
 d$QuantileFilter_label = factor(d$droplet_id %in% d_filt$droplet_id, levels=c(TRUE, FALSE), labels=c("Keep","Drop"))
 
+
+## Print thresholds for record:
+print(thresholds)
 
 # ### Explore some of the filtered out groups
 # h = d[d$max_fraction_reads_from_single_autosome < 0.1 & d$hqaa>1e4 & d$QuantileFilter_label=="Drop",]
@@ -156,3 +161,11 @@ makeDensityGrid_by_factor = function(d, plotfile, facet_by) {
 makeDensityGrid_by_factor(d, file.path(opts$outdir, "qc_grid_prefiltered_density_by_dropkick_label.png"), facet_by="dropkick_label")
 makeDensityGrid_by_factor(d, file.path(opts$outdir, "qc_grid_prefiltered_density_by_IsolationForest_label.png"), facet_by="IsolationForest_label")
 makeDensityGrid_by_factor(d, file.path(opts$outdir, "qc_grid_prefiltered_density_by_QuantileFilter_label.png"), facet_by="QuantileFilter_label")
+
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Write final determination of nuclei to barcode file
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+write.table(d[d$QuantileFilter_label=="Keep", c("barcode_gex", "barcode_atac")], file=file.path(opts$outdir, "barcodes_nuclei.txt"), row.names=FALSE, col.names=TRUE, quote=FALSE, sep="\t")

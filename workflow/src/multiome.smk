@@ -267,7 +267,7 @@ rule seurat_prelim:
         resolution = 0.1,
     shell:
         """
-        Rscript workflow/scripts/run_seurat_prelim.R \
+        Rscript workflow/scripts/run_seurat.R \
             --counts {input.counts} \
             --resolution {params.resolution} \
             --outdir {params.outdir}
@@ -327,7 +327,7 @@ rule seurat_round2:
         resolution = 0.1,
     shell:
         """
-        Rscript workflow/scripts/run_seurat_prelim.R \
+        Rscript workflow/scripts/run_seurat.R \
             --counts {input.counts} \
             --resolution {params.resolution} \
             --outdir {params.outdir}
@@ -368,7 +368,7 @@ rule seurat_round3:
         resolution = 0.1,
     shell:
         """
-        Rscript workflow/scripts/run_seurat_prelim.R \
+        Rscript workflow/scripts/run_seurat.R \
             --counts {input.counts} \
             --resolution {params.resolution} \
             --outdir {params.outdir}
@@ -385,7 +385,7 @@ rule liger_iNMF:
     shell:
         """
         mkdir -p {params.outdir}
-        Rscript workflow/scripts/run_liger.R --outdir {params.outdir} {input.count_matrices}
+        Rscript workflow/scripts/run_liger_iNMF.R --outdir {params.outdir} {input.count_matrices}
         """
 
 rule liger_clustering:
@@ -398,7 +398,7 @@ rule liger_clustering:
     shell:
         """
         mkdir -p {params.outdir}
-        Rscript workflow/scripts/run_liger.R --outdir {params.outdir} {input.count_matrices}
+        Rscript workflow/scripts/run_liger_clustering.R --outdir {params.outdir} {input.count_matrices}
         """
 
 

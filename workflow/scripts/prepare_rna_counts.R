@@ -23,9 +23,6 @@ option_list <- list(
     c("--barcodes_empty"), type = "character", help = "File containing multiome barcodes from empty droplets."
   ),
   make_option(
-    c("--barcodes_doublets"), type = "character", default=NULL, help = "File containing multiome barcodes from doublets (as inferred by amulet)."
-  ),
-  make_option(
     c("--counts_nuclei"), type = "character", help = "Output file name for storing quality nuclei counts matrix (dgCMatrix format)."
   ),
   make_option(

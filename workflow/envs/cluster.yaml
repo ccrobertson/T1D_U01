@@ -17,5 +17,11 @@ dropkick:
 dropkick_plots:
    mem: "20G"
 
-decontx:
+decontx_prelim:
    mem: "10G"
+
+decontx_round2:
+   mem: "10G"
+
+liger:
+   mem: "50G"

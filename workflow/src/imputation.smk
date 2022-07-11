@@ -7,30 +7,82 @@ import requests
 import json
 
 
-_results = partial(os.path.join, config["results"])
+name = config["name"]
+
+_results = partial(os.path.join, "results/imputation", name)
 _source = partial(os.path.join, config["source"])
-#_resources = partial(os.path.join, config["resources"])
 _logs = partial(_results, "logs")
 
 chromosomes = list(range(1, 23))
 
-def get_imputation_input(chr):
-    vcf = _source("*chr{chr}.vcf.gz")
+
+# def iterate_subjects_by_batch(samplename):
+#      return config["batches"][samplename].keys()
+#
+def get_donorstring(donors):
+    return(','.join(donors))
 
 rule all:
     input:
-        expand(_results("imputation_input/chr{chr}.vcf.gz"), chr=chromosomes),
+        #_results("imputation_input/chrALL.vcf.gz"),
+        _results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
+        _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf.gz"),
+        _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf"),
 
 
-rule symlinks:
+rule combine_chromosomes:
     input:
-        target = get_imputation_input(chr),
+        vcf_by_chr = expand(_results("imputation_results/chr{chr}.dose.vcf.gz"), chr=chromosomes),
     output:
-        linkname = _results("imputation_input/chr{chr}.vcf.gz"),
+        vcf_combined = _results("imputation_results/chrALL.dose.vcf.gz"),
+        tbi = _results("imputation_results/chrALL.dose.vcf.gz.tbi"),
     shell:
         """
-        ln -s {input.target} {output.linkname}
+        bcftools concat -O z -o {output.vcf_combined} {input.vcf_by_chr}
+        tabix -p vcf {output.vcf_combined}
         """
+
+rule remove_1kg:
+    input:
+        vcf_combined = _results("imputation_results/chrALL.dose.vcf.gz"),
+        donors = _results("donors.txt"),
+    output:
+        vcf_donors = _results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
+        tbi = _results("imputation_results/chrALL.donors_only.dose.vcf.gz.tbi"),
+    shell:
+        """
+        bcftools view --samples-file {input.donors} -O z -o {output.vcf_donors} {input.vcf_combined}
+	    tabix -p vcf {output.vcf_donors}
+        """
+
+rule filter_variants:
+    input:
+        vcf = _results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
+    output:
+        vcf_filtered = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf"),
+    conda:
+        "genetics"
+    shell:
+        """
+        vcftools --gzvcf {input.vcf} --maf 0.01 --recode --stdout > {output.vcf_filtered}
+        bgzip -c {output.vcf_filtered} > {output.vcf_filtered}.gz
+        tabix -p vcf {output.vcf_filtered}.gz
+        """
+
+rule filter_variants_1kg:
+    input:
+        vcf = _results("imputation_results/chrALL.dose.vcf.gz"),
+    output:
+        vcf_filtered = _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf"),
+    conda:
+        "genetics"
+    shell:
+        """
+        vcftools --gzvcf {input.vcf} --maf 0.01 --recode --stdout > {output.vcf_filtered}
+        bgzip -c {output.vcf_filtered} > {output.vcf_filtered}.gz
+        tabix -p vcf {output.vcf_filtered}.gz
+        """
+
 
 # imputation server url
 # url = 'https://imputationserver.sph.umich.edu/api/v2'

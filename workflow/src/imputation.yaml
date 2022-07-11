@@ -1,2 +1,8 @@
-source: "/lab/data/nih/2022_02_16_T1D_genotypes/imputation_input"
-results: "results/2022_02_16_T1D_genotypes"
+name: "2022_02_16_T1D_genotypes"
+source: "/lab/data/nih/2022_02_16_T1D_genotypes"
+donors:
+  - HPAP093
+  - HPAP105
+  - HPAP107
+  - ICRH139
+  - ICRH142 

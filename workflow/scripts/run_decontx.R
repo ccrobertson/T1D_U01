@@ -84,7 +84,7 @@ png(file.path(opts$outdir, "umap_contamination.png"))
 plotDecontXContamination(results)
 dev.off()
 
-known_markers = c("INS", "GCG", "SST", "PPY", "KRT19", "PRSS1", "PTPRC", "VWF", "SDS", "RSGS5")
+known_markers = c("INS", "GCG", "SST", "PPY", "KRT19", "PRSS1", "PTPRC", "VWF", "SDS", "RGS5")
 results <- logNormCounts(results)
 png(file.path(opts$outdir, "umap_marker_genes_pre.png"))
 plotDimReduceFeature(as.matrix(logcounts(results)),

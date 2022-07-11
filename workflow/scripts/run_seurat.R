@@ -180,7 +180,7 @@ write.csv(d[,c("barcode_gex", "clusters")], file=file.path(opts$outdir, "seurat_
 #     slice_max(n = 2, order_by = avg_log2FC)
 #
 
-known_markers = c("INS", "GCG", "SST", "PPY", "KRT19", "PRSS1", "PTPRC", "VWF", "SDS", "RSGS5")
+known_markers = c("INS", "GCG", "SST", "PPY", "KRT19", "PRSS1", "PTPRC", "VWF", "SDS", "RGS5")
 
 png(file.path(opts$outdir,"seurat_markers_known_violin.png"), width=600, height=400)
 VlnPlot(sobj, features = known_markers)

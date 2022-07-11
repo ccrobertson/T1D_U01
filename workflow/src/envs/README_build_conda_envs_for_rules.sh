@@ -42,6 +42,28 @@ wget https://github.com/UcarLab/AMULET/releases/download/v1.1/AMULET-v1.1.zip
 unzip AMULET-v1.1.zip
 chmod +x AMULET.sh
 
+## Create general environment
+mamba create --name general
+mamba activate general
+mamba install python=3.9
+mamba install numpy scipy matplotlib
+pip install deeptools
+cd /lab/work/ccrober/T1D_U01/workflow/src/envs/
+conda env export > general.yaml 
+
+## Create environment for genotype manipulation
+mamba create --name genetics
+mamba activate genetics
+cd /lab/work/ccrober/mambaforge/envs/genetics
+git clone https://github.com/vcftools/vcftools.git
+cd vcftools
+./autogen.sh
+./configure --prefix /lab/work/ccrober/mambaforge/envs/genetics
+make
+make install
+conda env export > /lab/work/ccrober/T1D_U01/workflow/src/envs/genetics.yaml
+
+
 
 ## Allow environments to be accessed in ipython notebooks
 #Following method 2 from this tutorial: https://towardsdatascience.com/get-your-conda-environment-to-show-in-jupyter-notebooks-the-easy-way-17010b76e874

@@ -1,0 +1,4 @@
+name: genetics
+channels:
+  - conda-forge
+prefix: /lab/work/ccrober/mambaforge/envs/genetics

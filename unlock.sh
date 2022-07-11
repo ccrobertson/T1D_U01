@@ -1,12 +1,13 @@
-## Filtering nuclei
-snakemake all --jobname "islets.{jobid}" --jobs 100 \
+pipeline=$1
+snakemake all --jobname "${pipeline}.{jobid}" --jobs 100 \
 		--unlock \
 		--keep-going \
 		--rerun-incomplete \
-		--snakefile workflow/src/multiome.smk \
-		--configfile workflow/src/multiome.yaml \
+		--snakefile workflow/src/${pipeline}.smk \
+		--configfile workflow/src/${pipeline}.yaml \
 		--use-conda \
+		--use-singularity \
 		--printshellcmds \
-		--cluster-config workflow/envs/cluster.yaml \
+		--cluster-config workflow/envs/cluster_${pipeline}.yaml \
 		--cluster "sbatch --output {cluster.output} --time {cluster.time} --mem {cluster.mem} --ntasks {cluster.ntasks} --cpus-per-task {cluster.cpus}" \
-		> logs/snakemake.log 2>&1 &
+		> logs/${pipeline}_snakemake.log 2>&1 &

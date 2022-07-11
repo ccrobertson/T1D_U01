@@ -3,7 +3,7 @@ __default__:
   ntasks: "1"
   cpus: "1"
   name: "JOBNAME.{rule}.{wildcards}"
-  output: "logs/smk.{rule}.{wildcards}.out"
+  output: "logs/smk.fiveprime.{rule}.{wildcards}.out"
   time: "4:00:00"
 
 #raw_fastqc:
@@ -23,5 +23,14 @@ decontx_prelim:
 decontx_round2:
    mem: "10G"
 
-liger:
-   mem: "50G"
+liger_iNMF:
+   mem: "25G"
+
+liger_clustering:
+  mem: "50G"
+
+liger_plots:
+  mem: "50G"
+
+bam_to_bigwig:
+  cpus: "20"

@@ -3,7 +3,7 @@
 from os.path import join
 import os
 from functools import partial
-
+import pandas as pd
 
 _results = partial(os.path.join, "results/multiome")
 _resources = partial(os.path.join, "resources")
@@ -20,6 +20,12 @@ def iterate_subjects_by_batch(samplename):
 
 def count_subjects_by_batch(samplename):
      return len(config["batches"][samplename].keys())
+
+def iterate_demuxlet_samples(demuxlet_report):
+    d = pd.read_csv(demuxlet_report)
+    samples = d["Sample_ID"].tolist()
+    return samples
+
 
 rule all:
     input:
@@ -51,11 +57,78 @@ rule all:
         #expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample=samples),
         # post decontx clustering
         #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample="Sample_5124-NM-2-hg38"),
-        expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
-        #~~~~~~~~ souporcell
-        #expand(_results("souporcell/{sample}/clusters.tsv"), sample=samples),
+        #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
         #~~~~~~~~ liger
-        _results("liger_clustering/liger_obj.rds"),
+        #_results("liger_clustering/liger_obj_clusters.rds"),
+        #_results("liger_clustering/umap_INS.png"),
+        #_results("liger_clustering_noNM3/umap_INS.png"),
+        #~~~~~~~~ souporcell
+        #expand(_results("souporcell_known_genotypes/{sample}/clusters.tsv"), sample=samples),
+        expand(_results("souporcell_known_genotypes/{sample}/clusters.tsv"), sample="Sample_5124-NM-2-hg38"),
+        #~~~~~~~ get tracks
+        #expand(_results("tracks_by_sample/gex.{sample}.TPM.bw"), sample=samples),
+
+
+rule symlinks_atac:
+    input:
+        demuxlet_report_atac = config["demuxlet_report_atac"],
+    output:
+        json = _results("nf_atac_config.json"),
+    params:
+        indir = config["fastq_dir_atac"],
+        outdir = _results("fastq_atac"),
+        samples = iterate_demuxlet_samples(config["demuxlet_report_atac"]),
+    shell:
+        """
+        createSymLinksATAC () {{
+          local target_dir=$1
+          local link_dir=$2
+          local sample=$3
+          ln -s --force $target_dir/$sample/*R1_001.fastq.gz $link_dir/${{sample}}_R1_001.fastq.gz
+          ln -s --force $target_dir/$sample/*R2_001.fastq.gz $link_dir/${{sample}}_R2_001.fastq.gz
+          ln -s --force $target_dir/$sample/*R3_001.fastq.gz $link_dir/${{sample}}_R3_001.fastq.gz
+        }}
+
+        mkdir -p {params.outdir}
+        for sample in {params.samples}; do
+            echo $sample
+            createSymLinksATAC {params.indir} {params.outdir} $sample
+        done
+
+        python workflow/scripts/build_multiome_json.py --demuxlet_report {input.demuxlet_report} --fastq_dir {params.outdir} --modality ATAC > {output.json}
+        """
+
+
+rule symlinks_gex:
+    input:
+        demuxlet_report = config["demuxlet_report_gex"],
+    output:
+        json = _results("nf_gex_config.json"),
+    params:
+        indir = config["fastq_dir_gex"],
+        outdir = _results("fastq_gex"),
+        samples = iterate_demuxlet_samples(config["demuxlet_report_gex"]),
+    shell:
+        """
+        createSymLinksGEX () {{
+          local target_dir=$1
+          local link_dir=$2
+          local sample=$3
+          ln -s --force $target_dir/$sample/*R1_001.fastq.gz $link_dir/${{sample}}_R1_001.fastq.gz
+          ln -s --force $target_dir/$sample/*R2_001.fastq.gz $link_dir/${{sample}}_R2_001.fastq.gz
+        }}
+
+        mkdir -p {params.outdir}
+        for sample in {params.samples}; do
+            echo $sample
+            createSymLinksGEX {params.indir} {params.outdir} $sample
+        done
+
+        python workflow/scripts/build_multiome_json.py --demuxlet_report {input.demuxlet_report} --fastq_dir {params.outdir} --modality GEX > {output.json}
+        """
+
+#rule nf_atac:
+#rule_nf_gex:
 
 #Some downstream programs require gzipped output, while others need it unzipped
 #so we will keep it available in both forms
@@ -375,6 +448,77 @@ rule seurat_round3:
         """
 
 
+
+
+rule souporcell:
+    input:
+        bam=_results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+        barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
+        fasta=_resources("hg38/hg38_cvb4.fa"),
+        common_variants=_resources("common_variants_grch38_fixed.vcf"),
+        donor_genotypes = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf",
+    output:
+        clusters = _results("souporcell_known_genotypes/{sample}/clusters.tsv"),
+        cluster_genotypes = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf"),
+        cluster_genotypes_reformatted = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf.gz"),
+    params:
+        outdir = _results("souporcell_known_genotypes/{sample}"),
+        k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
+        threads=10,
+        sample = "{sample}",
+    shell:
+        """
+        singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
+            -i {input.bam} \
+            -b {input.barcodes} \
+            -f {input.fasta} \
+            -t {params.threads} \
+            --cluster {params.k} \
+            --known_genotypes {input.donor_genotypes} \
+            --skip_remap True \
+            -o {params.outdir}
+
+        awk -v OFS='\t' -v sample={params.sample} '$1!~/^#CHROM/ {{print $0}} $1~/^#CHROM/ {{for(i=10; i<=NF; ++i) $i=sample"_souporcell_"$i; print $0 }}' {output.cluster_genotypes} | grep -v BACKGROUND | bgzip > {output.cluster_genotypes_reformatted}
+        tabix -p vcf {output.cluster_genotypes_reformatted}
+        """
+
+## NEED TO UPDATE THIS TO PROVIDE SEPARATE BIGWIGS FOR EACH STRAND
+rule bam_to_bigwig:
+    input:
+        bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+        blacklist = config["blacklist"],
+    output:
+        bw =  _results("tracks_by_sample/gex.{sample}.TPM.bw"),
+    conda:
+        "general"
+    shell:
+        """
+        bamCoverage -b {input.bam} -o {output.bw} --normalizeUsing BPM --numberOfProcessors 8 --blackListFileName {input.blacklist}
+        """
+
+
+# rule demultiplex:
+#     input:
+#         cluster_genotypes = _results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"),
+#         donor_genotypes = "results/imputation/2022_02_16_T1D_genotypes/imputation_input/chrALL.vcf.gz",
+#     output:
+#         combined_vcf = _results("soupourcell/{sample}/cluster_genotypes_add_donors.vcf"),
+#         combined_plink = _results("soupourcell/{sample}/cluster_genotypes_add_donors.bed"),
+#         cluster_genotypes_reformatted = _results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"),
+#         king_out =  _results("king/{sample}/souporcell_cluster_vs_donor.kin"),
+#     params:
+#         prefix =  _results("king/{sample}/souporcell_cluster_vs_donor"),
+#         sample = "{sample}"
+#     shell:
+#         """
+#         bcftools merge -O z -o {output.combined_vcf} {input.cluster_genotypes} {input.donor_genotypes}
+#         #plink --vcf {output.cluster_genotypes_reformatted} --double-id --make-bed --out {output.cluster_genotypes_reformatted}
+#         #plink --vcf {input.donor_genotypes} --double-id --make-bed --out {input.donor_genotypes}
+#         king -b {output.cluster_genotypes_reformatted}.bed,{input.donor_genotypes}.bed --duplicate --prefix {params.prefix}
+#         """
+
+#awk -v batch="NM1" '$1~/^#CHROM/ {for(i=10; i<=NF; ++i) $i=batch"_souporcell_"$i; print $0 }' results/multiome/souporcell/Sample_5124-NM-2-hg38/cluster_genotypes.vcf
+
 rule liger_iNMF:
     input:
         count_matrices = expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample=samples),
@@ -384,7 +528,6 @@ rule liger_iNMF:
         outdir = _results("liger_clustering"),
     shell:
         """
-        mkdir -p {params.outdir}
         Rscript workflow/scripts/run_liger_iNMF.R --outdir {params.outdir} {input.count_matrices}
         """
 
@@ -392,37 +535,61 @@ rule liger_clustering:
     input:
         liger_obj = _results("liger_clustering/liger_obj.rds"),
     output:
-        _results("liger_clustering/umap_cluster_and_batch"),
+        _results("liger_clustering/liger_obj_clusters.rds"),
     params:
         outdir = _results("liger_clustering"),
     shell:
         """
-        mkdir -p {params.outdir}
-        Rscript workflow/scripts/run_liger_clustering.R --outdir {params.outdir} {input.count_matrices}
+        Rscript workflow/scripts/run_liger_clustering.R --liger_obj {input.liger_obj} --outdir {params.outdir}
         """
 
-
-rule souporcell:
+rule liger_plots:
     input:
-        bam=_results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
-        fasta=_resources("hg38/hg38_cvb4.fa"),
-        common_variants=_resources("common_variants_grch38_fixed.vcf"),
+        liger_obj = _results("liger_clustering/liger_obj_clusters.rds"),
     output:
-        _results("souporcell/{sample}/clusters.tsv"),
+        _results("liger_clustering/umap_INS.png"),
     params:
-        outdir = _results("souporcell/{sample}"),
-        k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
-        threads=10,
+        outdir = _results("liger_clustering"),
     shell:
         """
-          singularity exec workflow/envs/souporcell_latest.sif workflow/scripts/souporcell_pipeline.py \
-            -i {input.bam} \
-            -b {input.barcodes} \
-            -f {input.fasta} \
-            -t {params.threads} \
-            --cluster {params.k} \
-            --common_variants {input.common_variants} \
-            --skip_remap True \
-            -o {params.outdir}
+        Rscript workflow/scripts/run_liger_plots.R --liger_obj {input.liger_obj} --outdir {params.outdir}
+        """
+
+
+
+rule liger_iNMF_noNM3:
+    input:
+        count_matrices = expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"),
+            sample=["Sample_5124-NM-1-hg38","Sample_5124-NM-2-hg38","Sample_5124-NM-4-hg38","Sample_5124-NM-5-hg38","Sample_5124-NM-6-hg38","Sample_5124-NM-7-hg38","Sample_5124-NM-8-hg38"]),
+    output:
+        _results("liger_clustering_noNM3/liger_obj.rds"),
+    params:
+        outdir = _results("liger_clustering_noNM3"),
+    shell:
+        """
+        Rscript workflow/scripts/run_liger_iNMF.R --outdir {params.outdir} {input.count_matrices}
+        """
+
+rule liger_clustering_noNM3:
+    input:
+        liger_obj = _results("liger_clustering_noNM3/liger_obj.rds"),
+    output:
+        _results("liger_clustering_noNM3/liger_obj_clusters.rds"),
+    params:
+        outdir = _results("liger_clustering_noNM3"),
+    shell:
+        """
+        Rscript workflow/scripts/run_liger_clustering.R --liger_obj {input.liger_obj} --outdir {params.outdir}
+        """
+
+rule liger_plots_noNM3:
+    input:
+        liger_obj = _results("liger_clustering_noNM3/liger_obj_clusters.rds"),
+    output:
+        _results("liger_clustering_noNM3/umap_INS.png"),
+    params:
+        outdir = _results("liger_clustering_noNM3"),
+    shell:
+        """
+        Rscript workflow/scripts/run_liger_plots.R --liger_obj {input.liger_obj} --outdir {params.outdir}
         """

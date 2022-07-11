@@ -1,3 +1,8 @@
+demuxlet_report_atac: "/lab/data/seqcore/5124-NM/ATAC/DemuxStats_5124-NM.csv"
+demuxlet_report_gex: "/lab/data/seqcore/5124-NM/GEX/DemuxStats_5124-NM.csv"
+fastq_dir_atac: "/lab/data/seqcore/5124-NM/ATAC"
+fastq_dir_gex: "/lab/data/seqcore/5124-NM/GEX/fastqs_5124-NM"
+
 results: "results/multiome"
 resources: "resources"
 samples:

@@ -7,6 +7,7 @@ library(ggExtra)
 library(cowplot)
 library(tidyr)
 library(dplyr)
+library(DropletUtils)
 
 theme_set(theme_bw(base_size = 12))
 
@@ -38,7 +39,7 @@ d = read.table(opts$input_txt)
 # Prefiltering
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
+sce <- read10xCounts()
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Q5 Filtering

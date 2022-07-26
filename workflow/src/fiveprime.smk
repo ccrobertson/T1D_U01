@@ -77,6 +77,15 @@ rule nf_rna:
         nextflow run -resume -params-file {input.json} --chemistry V2 --results {params.outdir} pipelines/snRNAseq-NextFlow/main.nf
         """
 
+rule cell_ranger:
+    input:
+    output:
+    shell:
+        """
+        cellranger-arc
+
+        """
+
 rule bam_to_bigwig:
     input:
         bam = _results("nf_gex_results/prune/{sample}-hg38.before-dedup.bam"),

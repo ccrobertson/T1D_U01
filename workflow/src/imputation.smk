@@ -25,9 +25,10 @@ def get_donorstring(donors):
 rule all:
     input:
         #_results("imputation_input/chrALL.vcf.gz"),
-        _results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
-        _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf.gz"),
-        _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf"),
+        #_results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
+        _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf.gz"),
+        #_results("imputation_results/chrALL.maf_gt_0.01.dose.vcf"),
+        #_results("imputation_results/chrALL.donors_only.maf_gt_0.01.bed"),
 
 
 rule combine_chromosomes:
@@ -42,45 +43,43 @@ rule combine_chromosomes:
         tabix -p vcf {output.vcf_combined}
         """
 
+rule filter_variants_maf:
+    input:
+        vcf = _results("imputation_results/chrALL.dose.vcf.gz"),
+    output:
+        vcf_filtered = _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf.gz"),
+    conda:
+        "genetics"
+    shell:
+        """
+        bcftools view -i 'MAF>.01' -O z -o {output.vcf_filtered} {input.vcf}
+        tabix -p vcf {output.vcf_filtered}
+        """
+
 rule remove_1kg:
     input:
-        vcf_combined = _results("imputation_results/chrALL.dose.vcf.gz"),
+        vcf_combined = _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf.gz"),
         donors = _results("donors.txt"),
     output:
-        vcf_donors = _results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
-        tbi = _results("imputation_results/chrALL.donors_only.dose.vcf.gz.tbi"),
+        vcf_donors = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf.gz"),
     shell:
         """
         bcftools view --samples-file {input.donors} -O z -o {output.vcf_donors} {input.vcf_combined}
 	    tabix -p vcf {output.vcf_donors}
         """
 
-rule filter_variants:
+rule convert_to_plink:
     input:
-        vcf = _results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
+        vcf = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf.gz"),
     output:
-        vcf_filtered = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf"),
+        bed = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.bed"),
+    params:
+        prefix = _results("imputation_results/chrALL.donors_only.maf_gt_0.01"),
     conda:
         "genetics"
     shell:
         """
-        vcftools --gzvcf {input.vcf} --maf 0.01 --recode --stdout > {output.vcf_filtered}
-        bgzip -c {output.vcf_filtered} > {output.vcf_filtered}.gz
-        tabix -p vcf {output.vcf_filtered}.gz
-        """
-
-rule filter_variants_1kg:
-    input:
-        vcf = _results("imputation_results/chrALL.dose.vcf.gz"),
-    output:
-        vcf_filtered = _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf"),
-    conda:
-        "genetics"
-    shell:
-        """
-        vcftools --gzvcf {input.vcf} --maf 0.01 --recode --stdout > {output.vcf_filtered}
-        bgzip -c {output.vcf_filtered} > {output.vcf_filtered}.gz
-        tabix -p vcf {output.vcf_filtered}.gz
+        plink --vcf {input.vcf} --double-id --make-bed --out {params.prefix}
         """
 
 

@@ -4,6 +4,7 @@ from os.path import join
 import os
 from functools import partial
 import pandas as pd
+import math
 
 _results = partial(os.path.join, "results/multiome")
 _resources = partial(os.path.join, "resources")
@@ -25,6 +26,13 @@ def iterate_demuxlet_samples(demuxlet_report):
     d = pd.read_csv(demuxlet_report)
     samples = d["Sample_ID"].tolist()
     return samples
+
+def calculate_max_missing_by_batch(samplename, genotyped_donors):
+    no_subjects = len(config["batches"][samplename].keys())
+    no_donors = pd.read_table(genotyped_donors, header=None).shape[0]
+    max_missing_rate = math.ceil((no_subjects-1)/(no_donors+no_subjects)*100, )/100
+    return max_missing_rate
+
 
 
 rule all:
@@ -60,11 +68,15 @@ rule all:
         #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
         #~~~~~~~~ liger
         #_results("liger_clustering/liger_obj_clusters.rds"),
-        #_results("liger_clustering/umap_INS.png"),
-        #_results("liger_clustering_noNM3/umap_INS.png"),
+        _results("liger_clustering/umap_INS.png"),
+        _results("liger_clustering_noNM3/umap_INS.png"),
         #~~~~~~~~ souporcell
         #expand(_results("souporcell_known_genotypes/{sample}/clusters.tsv"), sample=samples),
-        expand(_results("souporcell_known_genotypes/{sample}/clusters.tsv"), sample="Sample_5124-NM-2-hg38"),
+        #expand(_results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf.gz"), sample="Sample_test2-hg38"),
+        #~~~~~~~~ demultiplexing
+        #expand(_results("king/{sample}/souporcell_clusters_and_donors.vcf.gz.kin0"), sample="Sample_5124-NM-3-hg38"),
+        #expand(_results("king/{sample}/souporcell_clusters_and_donors_filtered.kin0"), sample=samples),
+        expand(_results("demultiplex/souporcell_clusters_and_donors_filtered.kin0"), sample=samples),
         #~~~~~~~ get tracks
         #expand(_results("tracks_by_sample/gex.{sample}.TPM.bw"), sample=samples),
 
@@ -449,38 +461,64 @@ rule seurat_round3:
 
 
 
+#I think this may be failing because one of the subjects in our pool is missing from the genotype VCF
+#https://github.com/wheaton5/souporcell/issues/77
+#https://github.com/wheaton5/souporcell/issues/141
+# rule souporcell_known_genotypes:
+#     input:
+#         bam=_results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+#         barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
+#         fasta=_resources("hg38/hg38_cvb4.fa"),
+#         common_variants=_resources("common_variants_grch38_fixed.vcf"),
+#         donor_genotypes = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf",
+#     output:
+#         clusters = _results("souporcell_known_genotypes/{sample}/clusters.tsv"),
+#         cluster_genotypes = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf"),
+#     params:
+#         outdir = _results("souporcell_known_genotypes/{sample}"),
+#         k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
+#         threads=10,
+#         sample = "{sample}",
+#     shell:
+#         """
+#         singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
+#             -i {input.bam} \
+#             -b {input.barcodes} \
+#             -f {input.fasta} \
+#             -t {params.threads} \
+#             --cluster {params.k} \
+#             --known_genotypes {input.donor_genotypes} \
+#             --skip_remap True \
+#             -o {params.outdir}
+#         """
 
-rule souporcell:
+# rule souporcell_fix_vcf:
+#     input:
+#         cluster_genotypes = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf"),
+#     output:
+#         cluster_genotypes_reformatted = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf.gz"),
+#     params:
+#         sample = "{sample}",
+#     shell:
+#         """
+#         awk -v OFS='\t' -v sample={params.sample} '$1!~/^#CHROM/ {{print $0}} $1~/^#CHROM/ {{for(i=10; i<=NF; ++i) $i=sample"_souporcell_"$i; print $0 }}' {input.cluster_genotypes} | grep -v BACKGROUND | bgzip > {output.cluster_genotypes_reformatted}
+#         tabix -p vcf {output.cluster_genotypes_reformatted}
+#         """
+
+
+rule souporcell_fix_vcf:
     input:
-        bam=_results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
-        fasta=_resources("hg38/hg38_cvb4.fa"),
-        common_variants=_resources("common_variants_grch38_fixed.vcf"),
-        donor_genotypes = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf",
+        cluster_genotypes = _results("souporcell/{sample}/cluster_genotypes.vcf"),
     output:
-        clusters = _results("souporcell_known_genotypes/{sample}/clusters.tsv"),
-        cluster_genotypes = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf"),
-        cluster_genotypes_reformatted = _results("souporcell_known_genotypes/{sample}/clusters_genotypes.vcf.gz"),
+        cluster_genotypes_reformatted = _results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"),
     params:
-        outdir = _results("souporcell_known_genotypes/{sample}"),
-        k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
-        threads=10,
         sample = "{sample}",
     shell:
         """
-        singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
-            -i {input.bam} \
-            -b {input.barcodes} \
-            -f {input.fasta} \
-            -t {params.threads} \
-            --cluster {params.k} \
-            --known_genotypes {input.donor_genotypes} \
-            --skip_remap True \
-            -o {params.outdir}
-
-        awk -v OFS='\t' -v sample={params.sample} '$1!~/^#CHROM/ {{print $0}} $1~/^#CHROM/ {{for(i=10; i<=NF; ++i) $i=sample"_souporcell_"$i; print $0 }}' {output.cluster_genotypes} | grep -v BACKGROUND | bgzip > {output.cluster_genotypes_reformatted}
+        awk -v OFS='\t' -v sample={params.sample} '$1!~/^#CHROM/ {{print $0}} $1~/^#CHROM/ {{for(i=10; i<=NF; ++i) $i=sample"_souporcell_"$i; print $0 }}' {input.cluster_genotypes} | grep -v BACKGROUND | bgzip > {output.cluster_genotypes_reformatted}
         tabix -p vcf {output.cluster_genotypes_reformatted}
         """
+
 
 ## NEED TO UPDATE THIS TO PROVIDE SEPARATE BIGWIGS FOR EACH STRAND
 rule bam_to_bigwig:
@@ -497,27 +535,78 @@ rule bam_to_bigwig:
         """
 
 
-# rule demultiplex:
-#     input:
-#         cluster_genotypes = _results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"),
-#         donor_genotypes = "results/imputation/2022_02_16_T1D_genotypes/imputation_input/chrALL.vcf.gz",
-#     output:
-#         combined_vcf = _results("soupourcell/{sample}/cluster_genotypes_add_donors.vcf"),
-#         combined_plink = _results("soupourcell/{sample}/cluster_genotypes_add_donors.bed"),
-#         cluster_genotypes_reformatted = _results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"),
-#         king_out =  _results("king/{sample}/souporcell_cluster_vs_donor.kin"),
-#     params:
-#         prefix =  _results("king/{sample}/souporcell_cluster_vs_donor"),
-#         sample = "{sample}"
-#     shell:
-#         """
-#         bcftools merge -O z -o {output.combined_vcf} {input.cluster_genotypes} {input.donor_genotypes}
-#         #plink --vcf {output.cluster_genotypes_reformatted} --double-id --make-bed --out {output.cluster_genotypes_reformatted}
-#         #plink --vcf {input.donor_genotypes} --double-id --make-bed --out {input.donor_genotypes}
-#         king -b {output.cluster_genotypes_reformatted}.bed,{input.donor_genotypes}.bed --duplicate --prefix {params.prefix}
-#         """
+rule demultiplex:
+    input:
+        souporcell_vcf = _results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"),
+        imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
+    output:
+        #merged_vcf =  _results("king/{sample}/souporcell_clusters_and_donors.vcf.gz"),
+        #merged_bed =  _results("king/{sample}/souporcell_clusters_and_donors_filtered.bed"),
+        kin0 =  _results("king/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
+    params:
+        prefix = _results("king/{sample}/souporcell_clusters_and_donors"),
+        prefix_filtered = _results("king/{sample}/souporcell_clusters_and_donors_filtered"),
+        max_missing = lambda wildcards: calculate_max_missing_by_batch(wildcards.sample, config["genotyped_donors"])
+    shell:
+        """
+        #merge souporcell and donor vcfs
+        bcftools merge -O z -o {params.prefix}.vcf.gz {input.souporcell_vcf} {input.imputed_vcf}
+        tabix -p vcf {params.prefix}.vcf.gz
 
-#awk -v batch="NM1" '$1~/^#CHROM/ {for(i=10; i<=NF; ++i) $i=batch"_souporcell_"$i; print $0 }' results/multiome/souporcell/Sample_5124-NM-2-hg38/cluster_genotypes.vcf
+        #convert merged vcf to plink
+        plink --vcf {params.prefix}.vcf.gz --double-id --make-bed --out {params.prefix}
+
+        #filter merged vcf for missingness
+        plink --bfile {params.prefix} --geno {params.max_missing} --make-bed --out {params.prefix_filtered}
+
+        #run king relationship inference
+        plink2 --bfile {params.prefix_filtered} --make-king-table --out {params.prefix_filtered}
+        """
+
+
+rule demultiplex_2:
+    input:
+        souporcell_vcfs = expand(_results("souporcell/{sample}/cluster_genotypes_reformatted.vcf.gz"), sample=samples),
+        imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
+    output:
+        #merged_vcf =  _results("demultiplex/souporcell_clusters_and_donors.vcf.gz"),
+        #merged_bed =  _results("demultiplex/souporcell_clusters_and_donors_filtered.bed"),
+        kin0 =  _results("demultiplex/souporcell_clusters_and_donors_filtered.kin0"),
+    params:
+        prefix = _results("demultiplex/souporcell_clusters_and_donors"),
+        prefix_filtered = _results("demultiplex/souporcell_clusters_and_donors_filtered"),
+        max_missing = 0.5
+    shell:
+        """
+        #merge souporcell and donor vcfs
+        bcftools merge -O z -o {params.prefix}.vcf.gz {input.souporcell_vcfs} {input.imputed_vcf}
+        tabix -p vcf {params.prefix}.vcf.gz
+
+        #convert merged vcf to plink
+        plink --vcf {params.prefix}.vcf.gz --double-id --make-bed --out {params.prefix}
+
+        #filter merged vcf for missingness
+        plink --bfile {params.prefix} --geno {params.max_missing} --make-bed --out {params.prefix_filtered}
+
+        #run king relationship inference
+        plink2 --bfile {params.prefix_filtered} --make-king square --make-king-table --out {params.prefix_filtered}
+
+        #recode as alt allele count matrix
+        plink --bfile {params.prefix_filtered} --recode A --out {params.prefix_filtered}
+        """
+
+
+#convert souporcell vcf to plink and calculate missingness
+#plink --vcf {input.souporcell_vcf} --double-id --make-bed --out {input.souporcell_vcf}
+#king -b {input.souporcell_vcf}.bed --bysample --prefix {input.souporcell_vcf}
+
+#king -b {output.merged_vcf}.snps_with_missing_lt_{params.max_missing}.bed --kinship --prefix {output.merged_vcf}.snps_with_missing_lt_{params.max_missing}
+#king -b {output.merged_vcf}.snps_with_missing_lt_{params.max_missing}.bed --bysample --prefix {output.merged_vcf}.snps_with_missing_lt_{params.max_missing}
+#king -b {output.merged_vcf}.snps_with_missing_lt_{params.max_missing}.bed --bySNP --prefix {output.merged_vcf}.snps_with_missing_lt_{params.max_missing}
+
+#kin = read.table("results/multiome/king/Sample_5124-NM-2-hg38/souporcell_clusters_and_donors.vcf.gz_filtered.kin0", header=TRUE)
+#qc = read.table("results/multiome/king/Sample_5124-NM-2-hg38/souporcell_clusters_and_donors.vcf.gz_filteredbySample.txt", header=TRUE)
+
 
 rule liger_iNMF:
     input:

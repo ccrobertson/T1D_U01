@@ -1,0 +1,160 @@
+library(ggplot2)
+theme_set(theme_bw(base_size = 12))
+
+
+samples = c("Sample_5124-NM-1-hg38",
+  "Sample_5124-NM-2-hg38",
+  "Sample_5124-NM-3-hg38",
+  "Sample_5124-NM-4-hg38",
+  "Sample_5124-NM-5-hg38",
+  "Sample_5124-NM-6-hg38",
+  "Sample_5124-NM-7-hg38",
+  "Sample_5124-NM-8-hg38")
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Read in kinships
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+kinships = list()
+for (sample in samples) {
+  kinships[[sample]] = read.table(paste0("results/multiome/king/",sample,"/souporcell_clusters_and_donors_filtered.kin0"), header=FALSE)
+  names(kinships[[sample]]) <- c("FID1",	"ID1",	"FID2",	"ID2",	"N_SNP",	"HetHet",	"IBS0",	"Kinship")
+}
+
+## Remove -Inf
+dkin = do.call("rbind", kinships)
+dkin = dkin[dkin$Kinship > -10000,]
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Read in clusters
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+clusters = list()
+for (sample in samples) {
+  cat(sample,"\n")
+  clusters[[sample]] = read.table(paste0("results/multiome/souporcell/",sample,"/clusters.tsv"), header=FALSE)
+  names(clusters[[sample]]) <- c("FID1",	"ID1",	"FID2",	"ID2",	"N_SNP",	"HetHet",	"IBS0",	"Kinship")
+}
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plot kinship results
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pdf("results/multiome/king/explore_matches_by_donor.pdf")
+donors = c("HPAP105", "HPAP093", "ICRH139","ICRH142", "HPAP107")
+for ( i in 1:length(donors)) {
+  donor = donors[i]
+  p = ggplot() +
+    geom_point(data=dkin[dkin$ID1==donor,], aes(x=HetHet, y=Kinship)) +
+    geom_text(data=dkin[dkin$ID1==donor & dkin$Kinship>0.1 & dkin$HetHet>0.2,], aes(x=HetHet, y=Kinship, label=ID2), check_overlap=TRUE) +
+    ggtitle(donor)
+  print(p)
+}
+dev.off()
+
+
+pdf("results/multiome/king/explore_matches_by_cluster.pdf")
+clusters = sort(unique(c(dkin$ID1, dkin$ID2))[grep("souporcell",unique(c(dkin$ID1, dkin$ID2)))])
+for ( i in 1:length(clusters)) {
+  cluster = clusters[i]
+  cat(cluster,"\n")
+  p = ggplot() +
+    geom_point(data=dkin[dkin$ID2==cluster,], aes(x=HetHet, y=Kinship)) +
+    geom_text(data=dkin[dkin$ID2==cluster & (dkin$Kinship>0.1 | dkin$HetHet>0.2),], aes(x=HetHet, y=Kinship, label=ID1), check_overlap=TRUE) +
+    ggtitle(cluster)
+  print(p)
+}
+dev.off()
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plot kinship matrix
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+dMat = as.matrix(read.table("results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.king", header=FALSE))
+ids = read.table("results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.king.id", header=TRUE, comment.char="~")$IID
+
+row.names(dMat) <- ids
+colnames(dMat) <- ids
+dMat[!is.finite(dMat)] <- -70
+
+pdf("results/multiome/demultiplex/corrplot_kinship.pdf")
+ggcorrplot(dMat)
+dev.off()
+
+
+
+### Read in as data frame
+df = read.table("results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.kin0", header=FALSE)
+names(df) <- c("FID1","ID1","FID2","ID2","N_SNP","HetHet","IBS0","Kinship")
+df$Kinship_bounded = df$Kinship
+df$Kinship_bounded[!is.finite(df$Kinship)] <- 0
+df$Kinship_bounded[df$Kinship < 0] <- 0
+
+
+### Create other half of triangle
+df2 = df
+df2$ID1 = df$ID2
+df2$FID1 = df$FID2
+df2$ID2 = df$ID1
+df2$FID2 = df$FID1
+
+### Create square
+sq = rbind(df, df2)
+
+### Create categorical kinship
+sq$Kinship_cat = NA
+sq$Kinship_cat[sq$Kinship_bounded > 0.35] <- "MZ"
+sq$Kinship_cat[sq$Kinship_bounded > 0.177 & sq$Kinship_bounded < 0.35] <- "1D"
+sq$Kinship_cat[sq$Kinship_bounded > 0.088 & sq$Kinship_bounded < 0.177] <- "2D"
+sq$Kinship_cat[sq$Kinship_bounded < 0.088] <- "Unrelated"
+sq$Kinship_cat = factor(sq$Kinship_cat, levels = c("Unrelated","2D", "1D","MZ"))
+
+### Create batch indicator
+souporcell_ids = unique(sq$ID1[grep("souporcell",sq$ID1)])
+donor_ids = unique(sq$ID1[!grepl("souporcell",sq$ID1)])
+batch = gsub("-hg38","", gsub("5124-", "", sapply(sapply(souporcell_ids, strsplit, split="_"), `[`, 2)))
+design = data.frame(ID = c(souporcell_ids, donor_ids), batch=c(batch, rep("donor",length(donor_ids))))
+row.names(design) = design$ID
+sq$Batch1 = design[sq$ID1,"batch"]
+sq$Batch2 = design[sq$ID2,"batch"]
+
+
+png("results/multiome/demultiplex/corrplot_kinship.png", width=1200, height=900)
+ggplot(sq) +
+  geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
+  theme(axis.text.x = element_text(angle=90))
+dev.off()
+
+png("results/multiome/demultiplex/corrplot_kinship_cat.png", width=1200, height=900)
+ggplot(sq) +
+  geom_tile(aes(x=ID1, y=ID2, fill=Kinship_cat)) +
+  theme(axis.text.x = element_text(angle=90))
+dev.off()
+
+donors = c("HPAP105", "HPAP093", "ICRH139","ICRH142", "HPAP107")
+sq_sub = sq[sq$ID2 %in% donors & !sq$ID1 %in% donor_ids,]
+png("results/multiome/demultiplex/corrplot_kinship_by_donor.png", width=1200, height=500)
+ggplot(sq_sub) +
+  geom_tile(aes(x=ID1, y=ID2, fill=Kinship_cat)) +
+  facet_grid(.~Batch1, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90))
+dev.off()
+
+png("results/multiome/demultiplex/corrplot_nsnps_by_donor.png", width=1200, height=500)
+ggplot(sq_sub) +
+  geom_tile(aes(x=ID1, y=ID2, fill=N_SNP)) +
+  facet_grid(.~Batch1, scales="free_x") +
+  theme(axis.text.x = element_text(angle=90))
+dev.off()
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Calculate alt allele count correlation matrix
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+add = read.table("results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.raw")
+dim(add)
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plot cell allele support PCA (trying to replicate figures in paper)
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

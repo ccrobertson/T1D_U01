@@ -64,6 +64,14 @@ make install
 conda env export > /lab/work/ccrober/T1D_U01/workflow/src/envs/genetics.yaml
 
 
+## Create environment for cell ranger
+mamba create --name cellranger
+mamba activate cellranger
+#https://support.10xgenomics.com/single-cell-multiome-atac-gex/software/pipelines/2.0/what-is-cell-ranger-arc
+mv /lab/work/ccrober/sw/cellranger-arc-2.0.1.tar.gz /lab/work/ccrober/mambaforge/envs/cellranger
+mv /lab/work/ccrober/mambaforge/envs/cellranger/cellranger-arc-2.0.1/bin/ /lab/work/ccrober/mambaforge/envs/cellranger/bin
+conda env export > /lab/work/ccrober/T1D_U01/workflow/src/envs/cellranger.yaml
+
 
 ## Allow environments to be accessed in ipython notebooks
 #Following method 2 from this tutorial: https://towardsdatascience.com/get-your-conda-environment-to-show-in-jupyter-notebooks-the-easy-way-17010b76e874

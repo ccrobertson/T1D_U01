@@ -31,8 +31,7 @@ Rscript workflow/scripts/build_batch_json.R --batchfile Sample_islet_list_for_mu
 ```
 
 
-### Check md5
-```bash
+x```bash
 checkLibMD5sum () {
   local dir=$1
   local lib=$2
@@ -92,3 +91,13 @@ bcftools query --list-samples results/imputation/2022_02_16_T1D_genotypes/chip_g
 conda activate snakemake
 bash commands.sh imputation
 ```
+
+
+### Cynthia fiveprime
+```bash
+ln -s /lab/work/herrerab/6108-NM_resequenced /lab/work/ccrober/T1D_U01/results/fiveprime/
+
+module load golang/1.13.5 singularity/3.5.1
+singularity run workflow/envs/scafe_latest.sif pipelines/SCAFE/scripts/scafe.workflow.sc.solo --help
+
+ scafe.download.demo.input

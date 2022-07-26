@@ -23,6 +23,14 @@ decontx_prelim:
 decontx_round2:
    mem: "10G"
 
+souporcell:
+   cpus: "10"
+   time: "48:00:00"
+   mem: "15G"
+
+demultiplex:
+   mem: "10G"
+
 liger_iNMF:
    mem: "25G"
 

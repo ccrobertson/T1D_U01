@@ -23,12 +23,39 @@ decontx_prelim:
 decontx_round2:
    mem: "10G"
 
+filter_bams_for_nuclei:
+   cpus: "10"
+
+filter_bams_for_ambient_genes:
+   cpus: "10"
+
 souporcell:
    cpus: "10"
    time: "48:00:00"
    mem: "15G"
 
+souporcell_gex:
+   cpus: "10"
+   time: "48:00:00"
+   mem: "15G"
+
+souporcell_atac:
+   cpus: "10"
+   time: "48:00:00"
+   mem: "15G"
+
+souporcell_known_genotypes:
+   cpus: "10"
+   time: "48:00:00"
+   mem: "15G"
+
 demultiplex:
+   mem: "10G"
+
+demultiplex_by_sample_gex:
+   mem: "10G"
+
+demultiplex_by_sample_atac:
    mem: "10G"
 
 liger_iNMF:

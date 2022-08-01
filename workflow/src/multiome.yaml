@@ -16,6 +16,7 @@ samples:
   - Sample_5124-NM-8-hg38
 
 genotyped_donors: "results/imputation/2022_02_16_T1D_genotypes/donors.txt"
+donor_genotypes: "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf"
 
 autosomes: "resources/hg38/hg38_autosomes.txt"
 blacklist: "resources/hg38/ENCFF356LFX.bed"

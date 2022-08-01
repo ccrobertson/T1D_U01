@@ -53,7 +53,7 @@ barcodes_empty = read.table(opts$barcodes_empty, header=TRUE)$barcode_gex
 #barcodes_doublets = scan(opts$barcodes_doublets, what="character")
 
 ### Extract protein coding genes only
-protein_coding_genes = read.table("resources/hg38/hg38.refGene.tss.bed.gz")$V4
+protein_coding_genes = unique(read.table("resources/hg38/hg38.refGene.tss.bed.gz")$V4)
 protein_coding_genes = protein_coding_genes[protein_coding_genes %in% rownames(matrix)]
 matrix_pc = matrix[protein_coding_genes,]
 

@@ -73,9 +73,10 @@ rule all:
         #expand(_results("souporcell_atac/{sample}/cluster_genotypes_reformatted.vcf.gz"), sample="Sample_5124-NM-2-hg38"),
         #~~~~~~~~ demultiplexing
         #expand(_results("souporcell_gex_{p}/{sample}/corrplot_kinship_cat.png"), sample=samples, p=ambient_gene_thresholds),
-        #expand(_results("souporcell_atac/{sample}/corrplot_kinship_cat.png"), sample=samples),
-        expand(_results("demultiplex_gex_{p}/corrplot_r_factor_by_donor.png"), sample=samples, p=ambient_gene_thresholds),
-        expand(_results("demultiplex_atac/corrplot_r_factor_by_donor.png"), sample=samples),
+        expand(_results("souporcell_atac/{sample}/corrplot_kinship_cat.png"), sample=samples),
+        expand(_results("souporcell_gex_cellranger_known_genotypes/{sample}/corrplot_kinship_cat.png"), sample="Sample_5124-NM-4-hg38"),
+        #expand(_results("demultiplex_gex_{p}/corrplot_r_factor_by_donor.png"), sample=samples, p=ambient_gene_thresholds),
+        #expand(_results("demultiplex_atac/corrplot_r_factor_by_donor.png"), sample=samples),
         #~~~~~~~ get tracks
         #expand(_results("tracks_by_sample/gex.{sample}.TPM.bw"), sample=samples),
 
@@ -533,11 +534,12 @@ rule define_ambient_gene_regions:
 
 rule filter_bams_for_ambient_genes:
     input:
-        gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
+        #gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
+        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
         regions = _results("bam_pass_qc_barcodes/{sample}/ambient_gene_regions_{p}.bed"),
     output:
-        gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex_exclude_ambient_genes_{p}.bam"),
-        gex_bam_discarded = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex_discarded_{p}.bam"),
+        gex_bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
+        gex_bam_discarded = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_discarded_{p}.bam"),
     container:
         "workflow/envs/arushi_general.simg"
     shell:
@@ -546,17 +548,16 @@ rule filter_bams_for_ambient_genes:
         samtools index {output.gex_bam}
         """
 
+# MONITOR: logs/smk.multiome.souporcell_atac.sample\=Sample_5124-NM-3-hg38.out
 rule souporcell_gex:
     input:
-        bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex_exclude_ambient_genes_{p}.bam"),
-        barcodes=_resources("barcode_whitelist_multiome_GEX_cp.txt"),
+        bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
+        barcodes=_results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.txt"),
         fasta=_resources("hg38/hg38_cvb4.fa"),
         common_variants=_resources("common_variants_grch38_fixed.vcf"),
         donor_genotypes = config["donor_genotypes"],
     output:
-        #clusters = _results("souporcell_gex_{p}/{sample}/clusters.tsv"),
         cluster_genotypes = _results("souporcell_gex_{p}/{sample}/cluster_genotypes.vcf"),
-        #cluster_genotypes_reformatted = _results("souporcell_gex_{p}/{sample}/cluster_genotypes_reformatted.vcf.gz"),
     params:
         outdir = _results("souporcell_gex_{p}/{sample}"),
         k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
@@ -564,10 +565,6 @@ rule souporcell_gex:
         sample = "{sample}",
     shell:
         """
-        rm -f {params.outdir}/clustering.done
-        rm -f {params.outdir}/consensus.done
-        rm -f {params.outdir}/troublet.done
-
         singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
             -i {input.bam} \
             -b {input.barcodes} \
@@ -583,26 +580,21 @@ rule souporcell_gex:
 ## (since this is ATAC-seq, there are no UMIs)
 rule souporcell_atac:
     input:
-        bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_atac.bam"),
-        barcodes = _resources("barcode_whitelist_multiome_ATAC_cp.txt"),
+        bam = _results("nf_atac_results/prune/{sample}.pruned.bam"),
+        barcodes=_results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_atac.txt"),
         fasta = _resources("hg38/hg38_cvb4.fa"),
         common_variants = _resources("common_variants_grch38_fixed.vcf"),
         donor_genotypes = config["donor_genotypes"],
     output:
-        #clusters = _results("souporcell_atac/{sample}/clusters.tsv"),
-        cluster_genotypes = _results("souporcell_atac/{sample}/cluster_genotypes.vcf"),
-        #cluster_genotypes_reformatted = _results("souporcell_atac/{sample}/cluster_genotypes_reformatted.vcf.gz"),
+        cluster_genotypes = _results("souporcell_atac/{sample}/{k}/cluster_genotypes.vcf"),
     params:
-        outdir = _results("souporcell_atac/{sample}"),
-        k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
+        outdir = _results("souporcell_atac/{sample}/{k}"),
+        #k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
+        k = "{k}",
         threads=10,
         sample = "{sample}",
     shell:
         """
-        rm -f {params.outdir}/clustering.done
-        rm -f {params.outdir}/consensus.done
-        rm -f {params.outdir}/troublet.done
-
         singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
             -i {input.bam} \
             -b {input.barcodes} \
@@ -619,44 +611,44 @@ rule souporcell_atac:
 #NEXT - explore a range of k
 #https://github.com/wheaton5/souporcell/issues/7
 
-#I think this may be failing because one of the subjects in our pool is missing from the genotype VCF
+#Issues about what happens when donors are missing from VCF
 #https://github.com/wheaton5/souporcell/issues/77
 #https://github.com/wheaton5/souporcell/issues/141
-# rule souporcell_known_genotypes:
-#     input:
-#         bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex_exclude_ambient_genes.bam"),
-#         barcodes = _resources("barcode_whitelist_multiome_GEX_cp.txt"),
-#         fasta = _resources("hg38/hg38_cvb4.fa"),
-#         common_variants = _resources("common_variants_grch38_fixed.vcf"),
-#         donor_genotypes = config["donor_genotypes"],
-#     output:
-#         clusters = _results("souporcell_known_genotypes/{sample}/clusters.tsv"),
-#         cluster_genotypes = _results("souporcell_known_genotypes/{sample}/cluster_genotypes.vcf"),
-#     params:
-#         outdir = _results("souporcell_known_genotypes/{sample}"),
-#         k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
-#         threads=10,
-#         sample = "{sample}",
-#     shell:
-#         """
-#         singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
-#             -i {input.bam} \
-#             -b {input.barcodes} \
-#             -f {input.fasta} \
-#             -t {params.threads} \
-#             --cluster {params.k} \
-#             --known_genotypes {input.donor_genotypes} \
-#             --known_genotypes_sample_names HPAP093 HPAP105 ICRH139 ICRH142 HPAP107 \
-#             --skip_remap True \
-#             -o {params.outdir}
-#         """
+rule souporcell_gex_known_genotypes:
+    input:
+        bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
+        barcodes = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.txt"),
+        fasta = _resources("hg38/hg38_cvb4.fa"),
+        common_variants = _resources("common_variants_grch38_fixed.vcf"),
+        donor_genotypes = config["donor_genotypes"],
+    output:
+        cluster_genotypes = _results("souporcell_gex_{p}_known_genotypes/{sample}/{k}/cluster_genotypes.vcf"),
+    params:
+        outdir = _results("souporcell_gex_{p}_known_genotypes/{sample}/{k}"),
+        #k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
+        k = "{k}",
+        threads=10,
+        sample = "{sample}",
+    shell:
+        """
+        singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
+            -i {input.bam} \
+            -b {input.barcodes} \
+            -f {input.fasta} \
+            -t {params.threads} \
+            --cluster {params.k} \
+            --known_genotypes {input.donor_genotypes} \
+            --known_genotypes_sample_names HPAP093 HPAP105 ICRH139 ICRH142 HPAP107 \
+            --skip_remap True \
+            -o {params.outdir}
+        """
 
 
 rule souporcell_fix_vcf:
     input:
-        cluster_genotypes = _results("souporcell_{input}/{sample}/cluster_genotypes.vcf"),
+        cluster_genotypes = _results("souporcell_{input}/{sample}/{k}/cluster_genotypes.vcf"),
     output:
-        cluster_genotypes_reformatted = _results("souporcell_{input}/{sample}/cluster_genotypes_reformatted.vcf.gz"),
+        cluster_genotypes_reformatted = _results("souporcell_{input}/{sample}/{k}/cluster_genotypes_reformatted.vcf.gz"),
     params:
         sample = "{sample}",
     conda:
@@ -669,13 +661,13 @@ rule souporcell_fix_vcf:
 
 rule demultiplex_by_sample:
     input:
-        souporcell_vcf = _results("souporcell_{input}/{sample}/cluster_genotypes_reformatted.vcf.gz"),
+        souporcell_vcf = _results("souporcell_{input}/{sample}/{k}/cluster_genotypes_reformatted.vcf.gz"),
         imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
     output:
-        kin0 =  _results("souporcell_{input}/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
+        kin0 =  _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
     params:
-        prefix = _results("souporcell_{input}/{sample}/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("souporcell_{input}/{sample}/souporcell_clusters_and_donors_filtered"),
+        prefix = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors"),
+        prefix_filtered = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered"),
         max_missing = lambda wildcards: calculate_max_missing_by_batch(wildcards.sample, config["genotyped_donors"])
     conda:
         "genetics"
@@ -692,37 +684,24 @@ rule demultiplex_by_sample:
         plink --bfile {params.prefix} --geno {params.max_missing} --make-bed --out {params.prefix_filtered}
 
         #run king relationship inference
-        plink2 --bfile {params.prefix_filtered} --make-king-table --out {params.prefix_filtered}
-        """
+        plink2 --bfile {params.prefix_filtered} --make-king square --make-king-table --out {params.prefix_filtered}
 
-
-rule demultiplex_by_sample_plots:
-    input:
-        kin0 = _results("souporcell_{input}/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
-    output:
-        png = _results("souporcell_{input}/{sample}/corrplot_kinship_cat.png"),
-    params:
-        outdir = _results("souporcell_{input}/{sample}"),
-        donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107",
-    conda:
-        "Renv"
-    shell:
-        """
-        Rscript workflow/scripts/demultiplexing_plots.R --kin0 {input.kin0} --outdir {params.outdir} --donors {params.donors}
+        #recode as alt allele count matrix
+        plink --bfile {params.prefix_filtered} --recodeA --out {params.prefix_filtered}
         """
 
 
 rule demultiplex:
     input:
-        souporcell_vcfs = expand(_results("souporcell_{{input}}/{sample}/cluster_genotypes_reformatted.vcf.gz"), sample=samples),
+        souporcell_vcfs = expand(_results("souporcell_{{input}}/{sample}/{k}/cluster_genotypes_reformatted.vcf.gz"), sample=samples),
         imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
     output:
-        kin0 =  _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat =  _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds =  _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered.kin.id"),
+        kin0 =  _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat =  _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds =  _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.kin.id"),
     params:
-        prefix = _results("demultiplex_{input}/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered"),
+        prefix = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors"),
+        prefix_filtered = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered"),
         max_missing = 0.5
     shell:
         """
@@ -744,23 +723,50 @@ rule demultiplex:
         """
 
 
+rule demultiplex_by_sample_plots:
+    input:
+        kin0 = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.king.id"),
+        genoraw = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.raw"),
+    output:
+        png = _results("demultiplex_by_sample_{input}/{sample}/{k}/corrplot_kinship_cat.png"),
+    params:
+        outdir = _results("demultiplex_by_sample_{input}/{sample}/{k}"),
+        donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107",
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/demultiplexing_plots.R \
+            --kin0 {input.kin0} \
+            --kinMat {input.kinMat} \
+            --kinIds {input.kinIds} \
+            --donors "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107" \
+            --genoraw {input.genoraw} \
+            --outdir {params.outdir}
+        """
+
+
 rule demultiplex_plots:
     input:
-        kin0 = _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("demultiplex_{input}/souporcell_clusters_and_donors_filtered.king.id"),
+        kin0 = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king.id"),
+        genoraw = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.raw"),
     output:
-        _results("demultiplex_{input}/corrplot_kinship_factor_by_donor.png"),
-        _results("demultiplex_{input}/corrplot_r_factor_by_donor.png"),
+        _results("demultiplex_{input}/{k}/corrplot_kinship_factor_by_donor.png"),
+        _results("demultiplex_{input}/{k}/corrplot_r_factor_by_donor.png"),
     params:
         outdir = _results("demultiplex_{input}"),
         donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107",
     shell:
         """
-        Rscript workflow/scripts/demultiplexing_scratch.R \
+        Rscript workflow/scripts/demultiplexing_plots.R \
             --kin0 {input.kin0} \
             --kinMat {input.kinMat} \
             --kinIds {input.kinIds} \
             --donors "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107" \
+            --genoraw {input.genoraw} \
             --outdir {params.outdir}
         """

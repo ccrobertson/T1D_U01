@@ -4,7 +4,10 @@ resources*
 logs*
 pipelines*
 workflow/old*
-workflow/envs/*.sif
-workflow/envs/*.simg
-workflow/Ricardo_code*
+workflow/envs/*
 workflow/scripts/__pycache__*
+workflow/notebooks/*
+*.log
+*.slurm
+*.md5check
+*.md5

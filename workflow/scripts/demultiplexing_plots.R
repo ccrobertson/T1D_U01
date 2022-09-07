@@ -20,7 +20,7 @@ option_list <- list(
     c("--genoraw"), type = "character", help = "Plink-generated (using --recodeA) alt allele count matrix."
   ),
   make_option(
-    c("--donors"), type = "character", help = "Genotyped donors we "
+    c("--donors"), type = "character", help = "Genotyped donors."
   ),
   make_option(
     c("--outdir"), type = "character", help = "Output destination for results."
@@ -33,11 +33,11 @@ opts <- parse_args(option_parser)
 
 ### Testing
 # opts = list()
-# opts$kin0 =  "results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.kin0"
-# opts$kinMat = "results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.king"
-# opts$kinIds = "results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.king.id"
-# opts$genoraw = "results/multiome/demultiplex/souporcell_clusters_and_donors_filtered.king.id"
-# opts$outdir = "results/multiome/demultiplex"
+# opts$kin0 =  "results/multiome/demultiplex_gex_auto/4/souporcell_clusters_and_donors_filtered.kin0"
+# opts$kinMat = "results/multiome/demultiplex_gex_auto/4/souporcell_clusters_and_donors_filtered.king"
+# opts$kinIds = "results/multiome/demultiplex_gex_auto/4/souporcell_clusters_and_donors_filtered.king.id"
+# opts$genoraw = "results/multiome/demultiplex_gex_auto/4/souporcell_clusters_and_donors_filtered.raw"
+# opts$outdir = "results/multiome/demultiplex_gex_auto/4"
 # opts$donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107"
 #
 
@@ -75,65 +75,89 @@ sq$Kinship_cat = factor(sq$Kinship_cat, levels = c("Unrelated","2D", "1D","MZ"))
 ### Create batch indicator
 souporcell_ids = unique(sq$ID1[grep("souporcell",sq$ID1)])
 donor_ids = unique(sq$ID1[!grepl("souporcell",sq$ID1)])
-batch = sapply(X=souporcell_ids, FUN=function(x) {gsub(pattern="_souporcell_.*$", replace="", x, perl=TRUE)})
+## !!!!!!!!!!!! UPDATE THIS
+batch = gsub("-hg38","", gsub("5124-", "", sapply(sapply(souporcell_ids, strsplit, split="_"), `[`, 2)))
+#batch = sapply(X=souporcell_ids, FUN=function(x) {gsub(pattern="_souporcell_.*$", replace="", x, perl=TRUE)})
 design = data.frame(ID = c(souporcell_ids, donor_ids), batch=c(batch, rep("donor",length(donor_ids))))
 row.names(design) = design$ID
 sq$Batch1 = design[sq$ID1,"batch"]
 sq$Batch2 = design[sq$ID2,"batch"]
 
 donors = unlist(strsplit(opts$donors, split=","))
-sq_sub = sq[sq$ID2 %in% donors & !sq$ID1 %in% donor_ids,]
+#sq_sub = sq[sq$ID2 %in% donors & !sq$ID1 %in% donor_ids,]
+wrong_donors = donor_ids[!donor_ids %in% donors]
 
-png(file.path(opts$outdir,"corrplot_kinship.png"), width=1200, height=900)
-ggplot(sq) +
-  geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
-  theme(axis.text.x = element_text(angle=90))
-dev.off()
+sq_sub = sq[sq$ID2 %in% donor_ids & !sq$ID1 %in% donor_ids,]
+sq_sub$donor_right_wrong = NA
+sq_sub$donor_right_wrong[sq_sub$ID2 %in% donors] <- "Right"
+sq_sub$donor_right_wrong[sq_sub$ID2 %in% wrong_donors] <- "Wrong"
+sq_sub$donor_right_wrong = factor(sq_sub$donor_right_wrong, levels = c("Right", "Wrong"))
 
-png(file.path(opts$outdir,"corrplot_kinship_factor.png"), width=1200, height=900)
-ggplot(sq) +
-  geom_tile(aes(x=ID1, y=ID2, fill=Kinship_cat)) +
-  theme(axis.text.x = element_text(angle=90))
-dev.off()
+#set HPAP107 to missing for batches 1-4
+sq_sub$Kinship_bounded[sq_sub$ID2 == "HPAP107" & sq_sub$Batch1 %in% c("NM-1","NM-2","NM-3","NM-4")] <- NA
+sq_sub$Kinship_cat[sq_sub$ID2 == "HPAP107" & sq_sub$Batch1 %in% c("NM-1","NM-2","NM-3","NM-4")] <- NA
+
+
+# png(file.path(opts$outdir,"corrplot_kinship.png"), width=1200, height=900)
+# ggplot(sq) +
+#   geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
+#   theme(axis.text.x = element_text(angle=90)) +
+#    scale_fill_continuous(limits = c(0, 0.5))
+# dev.off()
+#
+# png(file.path(opts$outdir,"corrplot_kinship_factor.png"), width=1200, height=900)
+# ggplot(sq) +
+#   geom_tile(aes(x=ID1, y=ID2, fill=Kinship_cat)) +
+#   theme(axis.text.x = element_text(angle=90))
+# dev.off()
 
 
 if (length(unique(batch))>1) {
 
-  png(file.path(opts$outdir,"corrplot_kinship_by_donor.png"), width=1200, height=500)
-  ggplot(sq_sub) +
-    geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
-    facet_grid(.~Batch1, scales="free_x") +
-    theme(axis.text.x = element_text(angle=90))
-  dev.off()
 
+  png(file.path(opts$outdir,"corrplot_kinship_by_donor.png"), width=1200, height=500)
+  p1 = ggplot(sq_sub) +
+    geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
+    facet_grid(donor_right_wrong~Batch1, scales="free") +
+    theme(axis.text.x = element_text(angle=90)) +
+    scale_fill_continuous(limits = c(0, 0.5))
+  print(p1)
+  dev.off()
 
   png(file.path(opts$outdir,"corrplot_kinship_factor_by_donor.png"), width=1200, height=500)
-  ggplot(sq_sub) +
+  p2 = ggplot(sq_sub) +
     geom_tile(aes(x=ID1, y=ID2, fill=Kinship_cat)) +
-    facet_grid(.~Batch1, scales="free_x") +
+    facet_grid(donor_right_wrong~Batch1, scales="free") +
     theme(axis.text.x = element_text(angle=90))
+  print(p2)
   dev.off()
+
 
 } else {
 
-  png(file.path(opts$outdir,"corrplot_kinship_by_donor.png"), width=1200, height=500)
-  ggplot(sq_sub) +
-    geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
-    theme(axis.text.x = element_text(angle=90))
-  dev.off()
 
+  png(file.path(opts$outdir,"corrplot_kinship_by_donor.png"), width=1200, height=500)
+  p1 = ggplot(sq_sub) +
+    geom_tile(aes(x=ID1, y=ID2, fill=Kinship_bounded)) +
+    theme(axis.text.x = element_text(angle=90)) +
+    scale_fill_continuous(limits = c(0, 0.5))
+  print(p1)
+  dev.off()
 
   png(file.path(opts$outdir,"corrplot_kinship_factor_by_donor.png"), width=1200, height=500)
-  ggplot(sq_sub) +
+  p2 = ggplot(sq_sub) +
     geom_tile(aes(x=ID1, y=ID2, fill=Kinship_cat)) +
     theme(axis.text.x = element_text(angle=90))
+  print(p2)
   dev.off()
+
 
 }
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Using allele count correlation matrix
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+rm(list=ls()[!ls() %in% "opts"])
 
 library(data.table)
 genoDF = fread(opts$genoraw, header=TRUE)
@@ -141,7 +165,7 @@ genoMat = as.matrix(genoDF[, 7:ncol(genoDF)])
 row.names(genoMat) = genoDF$IID
 
 genoMatTP = t(genoMat)
-genoCorrMat = cor(genoMatTP, use="pairwise.complete.obs")
+genoCorrMat = cor(genoMatTP, use="pairwise.complete.obs", method="spearman")
 
 pc = reshape2::melt(genoCorrMat)
 names(pc) <- c("ID1", "ID2", "r")
@@ -160,26 +184,41 @@ pc$r_bounded[pc$r < 0] <- 0
 
 souporcell_ids = unique(pc$ID1[grep("souporcell",pc$ID1)])
 donor_ids = unique(pc$ID1[!grepl("souporcell",pc$ID1)])
+## !!!!!!!!!!!! UPDATE THIS
 batch = gsub("-hg38","", gsub("5124-", "", sapply(sapply(souporcell_ids, strsplit, split="_"), `[`, 2)))
+#batch = sapply(X=souporcell_ids, FUN=function(x) {gsub(pattern="_souporcell_.*$", replace="", x, perl=TRUE)})
 design = data.frame(ID = c(souporcell_ids, donor_ids), batch=c(batch, rep("donor",length(donor_ids))))
 row.names(design) = design$ID
 pc$Batch1 = design[pc$ID1,"batch"]
 pc$Batch2 = design[pc$ID2,"batch"]
 
+
 donors = unlist(strsplit(opts$donors, split=","))
-pc_sub = pc[pc$ID2 %in% donors & !pc$ID1 %in% donor_ids,]
+wrong_donors = donor_ids[!donor_ids %in% donors]
 
-png(file.path(opts$outdir,"corrplot_r.png"), width=1200, height=800)
-ggplot(pc) +
-  geom_tile(aes(x=ID1, y=ID2, fill=r_bounded)) +
-  theme(axis.text.x = element_text(angle=90))
-dev.off()
+#pc_sub_wrong = pc[pc$ID2 %in% donors & !pc$ID1 %in% donor_ids,]
+pc_sub = pc[pc$ID2 %in% donor_ids & !pc$ID1 %in% donor_ids,]
+pc_sub$donor_right_wrong = NA
+pc_sub$donor_right_wrong[pc_sub$ID2 %in% donors] <- "Right"
+pc_sub$donor_right_wrong[pc_sub$ID2 %in% wrong_donors] <- "Wrong"
+pc_sub$donor_right_wrong = factor(pc_sub$donor_right_wrong, levels = c("Right", "Wrong"))
 
-png(file.path(opts$outdir,"corrplot_r_factor.png"), width=1200, height=800)
-ggplot(pc) +
-  geom_tile(aes(x=ID1, y=ID2, fill=r_factor)) +
-  theme(axis.text.x = element_text(angle=90))
-dev.off()
+#set HPAP107 to missing for batches 1-4
+pc_sub$r_bounded[pc_sub$ID2 == "HPAP107" & pc_sub$Batch1 %in% c("NM-1","NM-2","NM-3","NM-4")] <- NA
+pc_sub$r_factor[pc_sub$ID2 == "HPAP107" & pc_sub$Batch1 %in% c("NM-1","NM-2","NM-3","NM-4")] <- NA
+
+# png(file.path(opts$outdir,"corrplot_r.png"), width=1200, height=800)
+# ggplot(pc) +
+#   geom_tile(aes(x=ID1, y=ID2, fill=r_bounded)) +
+#   theme(axis.text.x = element_text(angle=90)) +
+#   scale_fill_continuous(limits = c(0, 1))
+# dev.off()
+#
+# png(file.path(opts$outdir,"corrplot_r_factor.png"), width=1200, height=800)
+# ggplot(pc) +
+#   geom_tile(aes(x=ID1, y=ID2, fill=r_factor)) +
+#   theme(axis.text.x = element_text(angle=90))
+# dev.off()
 
 
 
@@ -187,38 +226,48 @@ dev.off()
 if (length(unique(batch))>1) {
 
   png(file.path(opts$outdir,"corrplot_r_by_donor.png"), width=1200, height=500)
-  ggplot(pc_sub) +
+  p1 = ggplot(pc_sub) +
     geom_tile(aes(x=ID1, y=ID2, fill=r_bounded)) +
-    facet_grid(.~Batch1, scales="free_x") +
-    theme(axis.text.x = element_text(angle=90))
+    facet_grid(donor_right_wrong~Batch1, scales="free") +
+    theme(axis.text.x = element_text(angle=90)) +
+    scale_fill_continuous(limits = c(0, 1))
+  print(p1)
   dev.off()
 
-
   png(file.path(opts$outdir,"corrplot_r_factor_by_donor.png"), width=1200, height=500)
-  ggplot(pc_sub) +
+  p2 = ggplot(pc_sub) +
     geom_tile(aes(x=ID1, y=ID2, fill=r_factor)) +
-    facet_grid(.~Batch1, scales="free_x") +
+    facet_grid(donor_right_wrong~Batch1, scales="free") +
     theme(axis.text.x = element_text(angle=90))
+  print(p2)
   dev.off()
 
 } else {
 
   png(file.path(opts$outdir,"corrplot_r_by_donor.png"), width=1200, height=500)
-  ggplot(pc_sub) +
+  p1 = ggplot(pc_sub) +
     geom_tile(aes(x=ID1, y=ID2, fill=r_bounded)) +
-    theme(axis.text.x = element_text(angle=90))
+    theme(axis.text.x = element_text(angle=90)) +
+    scale_fill_continuous(limits = c(0, 1))
+  print(p1)
   dev.off()
 
 
   png(file.path(opts$outdir,"corrplot_r_factor_by_donor.png"), width=1200, height=500)
-  ggplot(pc_sub) +
+  p2 = ggplot(pc_sub) +
     geom_tile(aes(x=ID1, y=ID2, fill=r_factor)) +
     theme(axis.text.x = element_text(angle=90))
+  print(p2)
   dev.off()
 
 
 }
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Incorporate information on number of nuclei per cluster
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#clusters = read.table("results/multiome/souporcell_gex_auto/Sample_5124-NM-5-hg38/4/clusters.tsv", header=TRUE)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Heatmap/cluster samples based on relatedness metrics
@@ -227,60 +276,60 @@ if (length(unique(batch))>1) {
 # Wasn't exactly sure what the heatmap function was doing, so made one manually
 # following this example:
 #http://www.sthda.com/english/wiki/ggplot2-quick-correlation-matrix-heatmap-r-software-and-data-visualization
-reorder_cormat <- function(cormat){
-  dd <- as.dist((1-cormat)/2)
-  hc <- hclust(dd)
-  return(cormat[hc$order, hc$order])
-}
-
-makeCorMatHeatmap = function(x) {
-  df = reshape2::melt(reorder_cormat(x))
-  p = ggplot(df, aes(x=Var1, y=Var2, fill=value)) +
-    geom_tile(color = "white")+
-    scale_fill_gradient2(low = "white", high = "red", limit = c(0,1), space = "Lab", name="Genotype\nCorrelation") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 1, size = 12, hjust = 1))+
-    coord_fixed()
-  print(p)
-}
-
-makeKinMatHeatmap = function(x) {
-  df = reshape2::melt(reorder_cormat(x))
-  p = ggplot(df, aes(x=Var1, y=Var2, fill=value)) +
-    geom_tile(color = "white")+
-    scale_fill_gradient2(low = "white", high = "red", limit = c(0,0.5), space = "Lab", name="Kinship Coefficient") +
-    theme(axis.text.x = element_text(angle = 90, vjust = 1, size = 12, hjust = 1))+
-    coord_fixed()
-  print(p)
-}
-
-
-### Using kinship coefficients
-kinMat = as.matrix(read.table(opts$kinMat, header=FALSE))
-ids = read.table(opts$kinIds, header=TRUE, comment.char="~")$IID
-row.names(kinMat) <- ids
-colnames(kinMat) <- ids
-kinMat[!is.finite(kinMat)] <- 0
-kinMat[kinMat<0] <- 0
-
-png(file.path(opts$outdir,"corrplot_kinship_heatmap.png"))
-#heatmap(kinMat)
-makeKinMatHeatmap(kinMat)
-#makeKinMatHeatmap(kinMat[c(donors,souporcell_ids),c(donors,souporcell_ids)])
-dev.off()
-
-
-### Using genotype correlations
-genoMatTP = t(genoMat)
-genoCorrMat = cor(genoMatTP, use="pairwise.complete.obs")
-genoCorrMat[genoCorrMat<0] <- 0
-genoCorrMat[is.na(genoCorrMat)] <-0
-
-png(file.path(opts$outdir,"corrplot_r_heatmap.png"))
-makeCorMatHeatmap(genoCorrMat)
-#makeCorMatHeatmap(genoCorrMat[c(donors,souporcell_ids),c(donors,souporcell_ids)])
-dev.off()
-
-
+# reorder_cormat <- function(cormat){
+#   dd <- as.dist((1-cormat)/2)
+#   hc <- hclust(dd)
+#   return(cormat[hc$order, hc$order])
+# }
+#
+# makeCorMatHeatmap = function(x) {
+#   df = reshape2::melt(reorder_cormat(x))
+#   p = ggplot(df, aes(x=Var1, y=Var2, fill=value)) +
+#     geom_tile(color = "white")+
+#     scale_fill_gradient2(low = "white", high = "red", limit = c(0,1), space = "Lab", name="Genotype\nCorrelation") +
+#     theme(axis.text.x = element_text(angle = 90, vjust = 1, size = 12, hjust = 1))+
+#     coord_fixed()
+#   print(p)
+# }
+#
+# makeKinMatHeatmap = function(x) {
+#   df = reshape2::melt(reorder_cormat(x))
+#   p = ggplot(df, aes(x=Var1, y=Var2, fill=value)) +
+#     geom_tile(color = "white")+
+#     scale_fill_gradient2(low = "white", high = "red", limit = c(0,0.5), space = "Lab", name="Kinship Coefficient") +
+#     theme(axis.text.x = element_text(angle = 90, vjust = 1, size = 12, hjust = 1))+
+#     coord_fixed()
+#   print(p)
+# }
+#
+#
+# ### Using kinship coefficients
+# kinMat = as.matrix(read.table(opts$kinMat, header=FALSE))
+# ids = read.table(opts$kinIds, header=TRUE, comment.char="~")$IID
+# row.names(kinMat) <- ids 
+# colnames(kinMat) <- ids
+# kinMat[!is.finite(kinMat)] <- 0
+# kinMat[kinMat<0] <- 0
+#
+# png(file.path(opts$outdir,"corrplot_kinship_heatmap.png"))
+# #heatmap(kinMat)
+# makeKinMatHeatmap(kinMat)
+# #makeKinMatHeatmap(kinMat[c(donors,souporcell_ids),c(donors,souporcell_ids)])
+# dev.off()
+#
+#
+# ### Using genotype correlations
+# genoMatTP = t(genoMat)
+# genoCorrMat = cor(genoMatTP, use="pairwise.complete.obs")
+# genoCorrMat[genoCorrMat<0] <- 0
+# genoCorrMat[is.na(genoCorrMat)] <-0
+#
+# png(file.path(opts$outdir,"corrplot_r_heatmap.png"))
+# makeCorMatHeatmap(genoCorrMat)
+# #makeCorMatHeatmap(genoCorrMat[c(donors,souporcell_ids),c(donors,souporcell_ids)])
+# dev.off()
+#
+#
 
 
 

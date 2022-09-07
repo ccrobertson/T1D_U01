@@ -17,7 +17,7 @@ option_list <- list(
     c("--gtf"), type = "character", help = "Genome annotation file used for generating count matrix."
   ),
   make_option(
-    c("--p"), type = "numeric", help = "Filter out top p% of highest expressed genes in empty droplets. If set to auto, will determine p using empty droplet and nuclei count matrices."
+    c("--p"), type = "character", help = "Filter out top p% of highest expressed genes in empty droplets. If set to auto, will determine p using empty droplet and nuclei count matrices."
   ),
   make_option(
     c("--outdir"), type = "character", help = "Output destination for results."
@@ -66,9 +66,11 @@ if (opts$p == "auto") {
   summd$x = cumsum(summd$cum_nuc_lt_cum_emp)
   summd$ambient_indicator = summd$x == 0
   ambient_genes = row.names(summd)[summd$ambient_indicator==1]
+  cat("Filtering out ", 100*(length(ambient_genes)/nrow(summd)), "%of genes\n")
 } else {
-  thresh = quantile(rowSums(d), p=(1-opts$p))
-  ambient_genes =
+  thresh = quantile(rowSums(d), p=(1-as.numeric(opts$p)))
+  ambient_genes = row.names(d)[rowSums(d) > thresh]
+  cat("Filtering out ", 100*(length(ambient_genes)/nrow(summd)), "%of genes\n")
 }
 
 

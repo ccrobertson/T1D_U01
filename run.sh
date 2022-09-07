@@ -1,0 +1,1 @@
+../sw/run_snakemake/run.sh

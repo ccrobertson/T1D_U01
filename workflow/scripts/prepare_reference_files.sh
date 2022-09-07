@@ -8,7 +8,7 @@ cd $resources/hg38
 wget https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/refGene.txt.gz
 wget https://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/refGene.sql #for column headers
 mv refGene.txt.gz hg38.refGene.txt.gz
-Rscript ${scripts}/make_TSS_bed.R
+Rscript ${scripts}/make_tss.R
 gzip hg38.refGene.tss.bed
 
 

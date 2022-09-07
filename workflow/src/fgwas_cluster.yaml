@@ -3,14 +3,16 @@ __default__:
   ntasks: "1"
   cpus: "1"
   name: "JOBNAME.{rule}.{wildcards}"
-  output: "logs/smk.imputation.{rule}.{wildcards}.out"
+  output: "logs/smk.fgwas.{rule}.{wildcards}.out"
   time: "4:00:00"
 
 
-remove_1kg:
-  mem: "1G"
-  time: "48:00:00"
+fgwas_prep:
+  mem: "50G"
+  time: "10:00:00"
 
 
-filter_variants:
+fgwas_run:
+  mem: "30G"
   time: "48:00:00"
+

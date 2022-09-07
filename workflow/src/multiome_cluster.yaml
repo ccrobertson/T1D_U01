@@ -44,7 +44,7 @@ souporcell_atac:
    time: "48:00:00"
    mem: "15G"
 
-souporcell_known_genotypes:
+souporcell_gex_known_genotypes:
    cpus: "10"
    time: "48:00:00"
    mem: "15G"
@@ -52,11 +52,14 @@ souporcell_known_genotypes:
 demultiplex:
    mem: "10G"
 
-demultiplex_by_sample_gex:
+demultiplex_plots:
+   mem: "20G"
+
+demultiplex_by_sample:
    mem: "10G"
 
-demultiplex_by_sample_atac:
-   mem: "10G"
+demultiplex_by_sample_plots:
+   mem: "20G"
 
 liger_iNMF:
    mem: "25G"
@@ -78,3 +81,16 @@ liger_plots_noNM3:
 
 bam_to_bigwig:
   cpus: "8"
+
+bam_to_bigwig_stranded:
+  cpus: "8"
+
+run_macs2:
+  mem: "50G"
+
+deeptools_matrix:
+  cpus: "20"
+
+demuxlet:
+  mem: "50G"
+  time: "48:00:00"

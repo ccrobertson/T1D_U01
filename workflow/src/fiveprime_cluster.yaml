@@ -34,3 +34,9 @@ liger_plots:
 
 bam_to_bigwig:
   cpus: "20"
+
+deeptools_matrix:
+  cpus: "20"
+
+demultiplex:
+  mem: "20G"

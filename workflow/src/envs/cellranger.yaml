@@ -1,0 +1,4 @@
+name: cellranger
+channels:
+  - conda-forge
+prefix: /lab/work/ccrober/mambaforge/envs/cellranger

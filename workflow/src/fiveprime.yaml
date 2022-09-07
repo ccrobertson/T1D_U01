@@ -1,14 +1,25 @@
-name: "5125-NM"
-demuxlet_report: "/lab/data/seqcore/5125-NM/DemuxStats_5125-NM.csv"
-fastq_dir: "/lab/data/seqcore/5125-NM/fastqs_5125-NM"
+#name: "5125-NM"
+#demuxlet_report: "/lab/data/seqcore/5125-NM/DemuxStats_5125-NM.csv"
+#fastq_dir: "/lab/data/seqcore/5125-NM/fastqs_5125-NM"
+#samples:
+#  - Sample_5125-NM-1-5GEX
+#  - Sample_5125-NM-2-5GEX
+#  - Sample_5125-NM-3-5GEX
+#  - Sample_5125-NM-4-5GEX
+#  - Sample_5125-NM-5-5GEX
+#  - Sample_5125-NM-6-5GEX
+#  - Sample_5125-NM-7-5GEX
+#  - Sample_5125-NM-8-5GEX
+
+
+name: "5125-NM-1-rerun"
+demuxlet_report: "results/fiveprime/5125-NM-1-rerun/DemuxStats_5125-NM_reformatted.csv"
+fastq_dir: "/lab/data/seqcore/5125-NM-1/fastqs_5125-NM"
 samples:
-  - Sample_5125-NM-1-5GEX
-  - Sample_5125-NM-2-5GEX
-  - Sample_5125-NM-3-5GEX
-  - Sample_5125-NM-4-5GEX
-  - Sample_5125-NM-5-5GEX
-  - Sample_5125-NM-6-5GEX
-  - Sample_5125-NM-7-5GEX
-  - Sample_5125-NM-8-5GEX
+   - Sample_5125-NM-1-5GEX
+
+
+genotyped_donors: "results/imputation/2022_02_16_T1D_genotypes/donors.txt"
+donor_genotypes: "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf"
 
 blacklist: "resources/hg38/ENCFF356LFX.bed"

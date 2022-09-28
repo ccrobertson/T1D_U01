@@ -1,0 +1,9 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.integration.{rule}.{wildcards}.out"
+  time: "12:00:00"
+
+

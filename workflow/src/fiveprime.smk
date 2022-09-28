@@ -5,339 +5,423 @@ import os
 import pandas as pd
 from functools import partial
 import math
+import glob
 
 
 name = config["name"]
-_results = partial(os.path.join, "results/fiveprime", name)
+_data = partial(os.path.join, "data")
+_results = partial(os.path.join, "results", name)
 _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-def iterate_samples(demuxlet_report):
-    d = pd.read_csv(demuxlet_report)
-    samples = d["Sample_ID"].tolist()
-    return samples
-
-def calculate_max_missing_by_batch(samplename, genotyped_donors):
-    n_subjects = len(config["batches"][samplename].keys())
-    n_donors = pd.read_table(genotyped_donors, header=None).shape[0]
-    max_missing_rate = math.ceil((n_subjects-1)/(n_donors+n_subjects)*100, )/100
-    return max_missing_rate
-
-samples = iterate_samples(config["demuxlet_report"])
-configfile: "results/multiome/Sample_islet_list_for_multiomics_Batches_long_format_fixedHPAP093_with_libname.json"
+configfile: _data("nandini_run_design.json")
 
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Functions
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def iterate_batches_in_run(run):
+    batches = list(config["runs"][run]["batches_in_run"].keys())
+    return batches
+
+def get_uniq_sample_ids():
+    s = []
+    runs = config["runs"].keys()
+    for r in runs:
+        batches = iterate_batches_in_run(r)
+        samples = ["Sample_"+r+"_"+b for b in batches]
+        s = s + samples
+    return s
+
+def fastq_dir_by_run(run):
+    dir = config['runs'][run]['fastq_dir']
+    return dir
+
+def fastqs_by_sample(run, batch):
+    f = open(config['runs'][run]['bcl2fq_report'])
+    for line in f:
+        line = line.replace('"','')
+        vals = line.split(',')
+        Sample_ID = config["runs"][run]["batches_in_run"][batch]
+        if vals[1] == Sample_ID:
+            barcode = vals[3]
+            dir = config['runs'][run]['fastq_dir']
+            R1 = glob.glob(dir + "/*" + barcode + "*" + "R1_001.fastq.gz")[0]
+            R2 = glob.glob(dir + "/*" + barcode + "*" + "R2_001.fastq.gz")[0]
+    return [R1, R2]
+
+def fastq_prefix_by_sample(run, batch):
+    fullpath = fastqs_by_sample(run, batch)[0]
+    file = fullpath.split('/')[len(fullpath.split('/'))-1]
+    prefix = re.sub("_S[0-9]+_R1_001.fastq.gz","", file)
+    return prefix
+
+
+#print(fastqs_by_sample("5125-NM-1","NM-1"))
+#print(" ".join(fastqs_by_sample("5125-NM-1","NM-1")))
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Variables
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+### 5GEX runs to process from fiveprime.yaml
+runs = config["runs"].keys()
+samples = get_uniq_sample_ids()
+#print(samples)
+
+### batch information from nandini_run_design.json
+batches = config["batches"].keys()
+
+### restrict wildcards to existing runs, batches, and samples
+wildcard_constraints:
+   run="|".join(runs),
+   sample="|".join(samples),
+   batch="|".join(batches),
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Run
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 rule all:
     input:
-        _results("library_config.json"),
-        #expand(_results("tracks_by_sample/gex.{sample}.TPM.bw"), sample=samples)
-        expand(_results("tracks/{sample}.TPM.{strand}.bw"),strand = ['forward', 'reverse'], sample="Sample_5125-NM-1-5GEX"),
-        #expand(_results("ngsplot/{sample}/ngsplot_multiplot.png"), sample="Sample_5125-NM-1-5GEX"),
-        expand(_results("deeptools/{sample}/profile_plot_tss_vs_intergenic.png"), sample="Sample_5125-NM-1-5GEX"),
-        _results("demultiplex/corrplot_r_by_donor.png"),
+        #~~~~~~~~ cellranger
+        #expand(_results("cellranger/{sample}.done.flag"), sample="Sample_5125-NM-2-8_NM-2"),
+        #expand(_results("cellranger/{sample}.done.flag"), sample=samples),
+        #~~~~~~~~ sort cellranger bam
+        #expand(_results("cellranger_bam_sorted/{sample}/possorted_genome_bam_autosomes.bam"), sample=samples),
+        #expand(_results("cellranger_bam_sorted/{sample}/possorted_genome_bam_autosomes.bam"), sample="Sample_5125-NM-2-8_NM-2"),
+        #~~~~~~~~ starsolo
+        #expand(_results("starsolo/{sample}/starsolo.Aligned.sortedByCoord.out.bam"), sample=samples),
+        #~~~~~~~~ gzip cellranger
+        #expand(_results("cellranger/{sample}/outs/raw_feature_bc_matrix/genes.tsv"), sample="Sample_5125-NM-1_NM-1"),
+        #~~~~~~~~ gzip starsolo
+        #expand(_results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/genes.tsv"),sample="Sample_5125-NM-1_NM-1", feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
+        #~~~~~~~~ qc
+        #expand(_results("qc/{sample}.qc.txt"), sample="Sample_5125-NM-1_NM-1"),
+        expand(_results("qc/{sample}.qc.metrics.png"), sample=samples),
+        #~~~~~~~~ seurat_round3
+        expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
 
 
-
-
-rule symlinks:
+rule cellranger:
     input:
-        demuxlet_report = config["demuxlet_report"],
+        fastqs = lambda wildcards: fastqs_by_sample(wildcards.run, wildcards.batch),
     output:
-        json = _results("library_config.json"),
+        flag = _results("cellranger/Sample_{run}_{batch}.done.flag"),
     params:
-        indir = config["fastq_dir"],
-        #want complete path for symlinks?
-        outdir = os.path.join("/lab/work/ccrober/T1D_U01", _results("fastq")),
-        samples = iterate_samples(config["demuxlet_report"]),
+        id = "Sample_{run}_{batch}",
+        fastq_dir = lambda wildcards: fastq_dir_by_run(wildcards.run),
+        fastq_prefix = lambda wildcards: fastq_prefix_by_sample(wildcards.run, wildcards.batch),
+        outdir = _results("cellranger"),
     shell:
         """
-        createSymLinks () {{
-          local target_dir=$1
-          local link_dir=$2
-          local sample=$3
-          ln -s --force $target_dir/$sample/*R1_001.fastq.gz $link_dir/${{sample}}_R1_001.fastq.gz
-          ln -s --force $target_dir/$sample/*R2_001.fastq.gz $link_dir/${{sample}}_R2_001.fastq.gz
-        }}
-
-        mkdir -p {params.outdir}
-        for sample in {params.samples}
-        do
-          echo $sample
-          createSymLinks {params.indir} {params.outdir} $sample
-        done
-
-        python workflow/scripts/build_fiveprime_json.py --demuxlet_report {input.demuxlet_report} --fastq_dir {params.outdir} --modality GEX > {output.json}
+        fastq_dir=$PWD/{params.fastq_dir}
+        flag=$PWD/{output.flag}
+        cd {params.outdir}
+        cellranger count --id={params.id} \
+           --transcriptome=/lab/work/ccrober/sw/cellranger/refdata-gex-GRCh38-2020-A \
+           --fastqs=$fastq_dir \
+           --sample={params.fastq_prefix} \
+           --chemistry=SC5P-PE \
+           --localcores=10 \
+           --localmem=50
+        touch $flag
         """
 
-
-# rule cell_ranger:
-#     input:
-#     output:
-#     conda:
-#         "cellranger"
-#     shell:
-#         """
-#         cellranger
-#         """
-
-
-rule souporcell_fix_vcf:
+rule gzip_cellranger:
     input:
-        cluster_genotypes = _results("souporcell/cluster_genotypes.vcf"),
+        features_gz = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/features.tsv.gz"),
+        barcodes_gz = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/barcodes.tsv.gz"),
+        matrix_gz = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/matrix.mtx.gz"),
     output:
-        cluster_genotypes_reformatted = _results("souporcell/cluster_genotypes_reformatted.vcf.gz"),
-    params:
-        sample = "NM1",
-    conda:
-        "genetics"
+        features = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/features.tsv"),
+        barcodes = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/barcodes.tsv"),
+        matrix = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/matrix.mtx"),
+        genes = _results("cellranger/{sample}/outs/raw_feature_bc_matrix/genes.tsv"),
     shell:
         """
-        awk -v OFS='\t' -v sample={params.sample} '$1!~/^#CHROM/ {{print $0}} $1~/^#CHROM/ {{for(i=10; i<=NF; ++i) $i=sample"_souporcell_"$i; print $0 }}' {input.cluster_genotypes} | grep -v BACKGROUND | bgzip > {output.cluster_genotypes_reformatted}
-        tabix -p vcf {output.cluster_genotypes_reformatted}
+        gzip -d -c {input.matrix_gz} > {output.matrix}
+        gzip -d -c {input.barcodes_gz} > {output.barcodes}
+        gzip -d -c {input.features_gz} > {output.features}
+        ln -s --relative --force {output.features} {output.genes}
         """
 
-rule demultiplex:
+rule cellranger_bam_sorted:
     input:
-        souporcell_vcf = _results("souporcell/cluster_genotypes_reformatted.vcf.gz"),
-        imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
+        bam = _results("cellranger/{sample}/outs/possorted_genome_bam.bam"),
     output:
-        kin0 =  _results("demultiplex/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("demultiplex/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("demultiplex/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("demultiplex/souporcell_clusters_and_donors_filtered.raw"),
+        sam =  _results("cellranger_bam_sorted/{sample}/possorted_genome_bam_autosomes.sam"),
+        bam =  _results("cellranger_bam_sorted/{sample}/possorted_genome_bam_autosomes.bam"),
+        bai = _results("cellranger_bam_sorted/{sample}/possorted_genome_bam_autosomes.bam.bai"),
     params:
-        prefix = _results("demultiplex/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("demultiplex/souporcell_clusters_and_donors_filtered"),
-        max_missing = calculate_max_missing_by_batch("Sample_5124-NM-1-hg38", config["genotyped_donors"])
-    conda:
-        "genetics"
+        autosomes = expand("chr{chr}", chr=range(1,23)),
+    container:
+        "workflow/envs/arushi_general.simg",
     shell:
         """
-        #merge souporcell and donor vcfs
-        bcftools merge -O z -o {params.prefix}.vcf.gz {input.souporcell_vcf} {input.imputed_vcf}
-        tabix -p vcf {params.prefix}.vcf.gz
-
-        #convert merged vcf to plink
-        plink --vcf {params.prefix}.vcf.gz --double-id --make-bed --out {params.prefix}
-
-        #filter merged vcf for missingness
-        plink --bfile {params.prefix} --geno {params.max_missing} --make-bed --out {params.prefix_filtered}
-
-        #run king relationship inference
-        plink2 --bfile {params.prefix_filtered} --make-king square --make-king-table --out {params.prefix_filtered}
-
-        #recode as alt allele count matrix
-        plink --bfile {params.prefix_filtered} --recodeA --out {params.prefix_filtered}
+        samtools view -H {input.bam} | grep -v "@SQ" > {output.sam}
+        samtools view -H {input.bam} | grep "@SQ" | workflow/scripts/fix_cellranger_bam_header.sh >> {output.sam}
+        samtools view -@ 10 {input.bam} {params.autosomes} >>  {output.sam}
+        samtools view -b -@ 10 {output.sam} > {output.bam}
+        samtools index -b {output.bam}
         """
 
 
-rule demultiplex_plots:
+rule starsolo:
     input:
-        kin0 = _results("demultiplex/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("demultiplex/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("demultiplex/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("demultiplex/souporcell_clusters_and_donors_filtered.raw"),
+        fastqs = lambda wildcards: fastqs_by_sample(wildcards.run, wildcards.batch),
     output:
-        _results("demultiplex/corrplot_r_by_donor.png"),
+        bam = _results("starsolo/Sample_{run}_{batch}/starsolo.Aligned.sortedByCoord.out.bam"),
+        mtx = expand(_results("starsolo/Sample_{{run}}_{{batch}}/starsolo.Solo.out/{feature_type}/raw/matrix.mtx"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
+        barcodes = expand(_results("starsolo/Sample_{{run}}_{{batch}}/starsolo.Solo.out/{feature_type}/raw/barcodes.tsv"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
+        features = expand(_results("starsolo/Sample_{{run}}_{{batch}}/starsolo.Solo.out/{feature_type}/raw/features.tsv"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
     params:
-        outdir = _results("demultiplex"),
-        donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107",
+        prefix = _results("starsolo/Sample_{run}_{batch}/starsolo."),
+        genomeDir = _resources("hg38/hg38_cvb4"),
+        sjdbGTFfile = _resources("hg38/gencode.v39.annotation.CVB4.gtf"),
+        soloCBwhitelist = _resources("barcode_whitelist_5GEX.txt"),
+        outSAMattributes = "NH HI nM AS CR CY CB UR UY UB sM GX GN",
+    shell:
+        """
+        singularity exec --bind /lab workflow/envs/star_2.7.10a.sif STAR --soloBarcodeReadLength 0 \
+              --runThreadN 10 \
+              --outFileNamePrefix {params.prefix} \
+              --genomeLoad NoSharedMemory \
+              --limitBAMsortRAM 60000000000 \
+              --runRNGseed 8675309 \
+              --readFilesCommand gunzip -c \
+              --outSAMattributes {params.outSAMattributes} \
+              --outSAMtype BAM SortedByCoordinate \
+              --genomeDir {params.genomeDir} \
+              --outSAMunmapped Within KeepPairs \
+              --sjdbGTFfile {params.sjdbGTFfile} \
+              --soloFeatures Gene GeneFull GeneFull_ExonOverIntron GeneFull_Ex50pAS \
+              --soloMultiMappers Uniform PropUnique EM Rescue \
+              --soloUMIfiltering MultiGeneUMI \
+              --soloCellFilter None \
+              --soloCBmatchWLtype 1MM_multi_pseudocounts \
+              --soloCBwhitelist {params.soloCBwhitelist} \
+              --soloBarcodeMate 1 \
+              --clip5pNbases 39 0 \
+              --soloType CB_UMI_Simple \
+              --soloCBstart 1 \
+              --soloCBlen 16 \
+              --soloUMIstart 17 \
+              --soloUMIlen 10 \
+              --readFilesIn {input.fastqs}
+        """
+
+
+rule gzip_starsolo:
+    input:
+        mtx = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/matrix.mtx"),
+        barcodes = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/barcodes.tsv"),
+        features = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/features.tsv"),
+    output:
+        mtx_gz = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/matrix.mtx.gz"),
+        barcodes_gz = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/barcodes.tsv.gz"),
+        features_gz = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/features.tsv.gz"),
+        genes = _results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/genes.tsv"),
+    shell:
+        """
+        gzip -c {input.mtx} > {output.mtx_gz}
+        gzip -c {input.barcodes} > {output.barcodes_gz}
+        gzip -c {input.features} > {output.features_gz}
+        ln -s --relative --force {input.features} {output.genes}
+        """
+
+
+rule qc:
+    input:
+        bam = _results("starsolo/{sample}/starsolo.Aligned.sortedByCoord.out.bam"),
+        mtx = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+        barcodes = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/barcodes.tsv"),
+    output:
+        qc = _results("qc/{sample}.qc.txt"),
+    shell:
+        """
+        singularity exec --bind /lab workflow/envs/porchard_snatac_general_20220107.sif python workflow/scripts/qc-from-starsolo.py {input.bam} {input.mtx} {input.barcodes} > {output.qc}
+        """
+
+
+rule qc_plots:
+    input:
+        metrics = _results("qc/{sample}.qc.txt"),
+    output:
+        _results("qc/{sample}.qc.metrics.png"),
+    params:
+        prefix = _results("qc/{sample}.qc."),
+    shell:
+        """
+        singularity exec --bind /lab workflow/envs/porchard_snatac_general_20220107.sif python workflow/scripts/plot-qc-metrics.py --prefix {params.prefix} {input.metrics}
+        """
+
+
+rule droplet_utils:
+    input:
+        _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+    output:
+        _results("droplet_utils/{sample}/barcode_rank.png"),
+        _results("droplet_utils/{sample}/barcodes_empty.txt"),
+        _results("droplet_utils/{sample}/barcodes_nuclei.txt"),
+        _results("droplet_utils/{sample}/emptydrops.rds"),
+    params:
+        input_10x_dir = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw"),
+        outdir = _results("droplet_utils/{sample}"),
+    shell:
+        """
+        Rscript workflow/scripts/run_dropletutils.R \
+            --input_10x_dir {params.input_10x_dir} \
+            --outdir {params.outdir}
+        """
+
+rule prepare_rna_counts:
+    input:
+        _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+        barcodes_nuclei = _results("droplet_utils/{sample}/barcodes_nuclei.txt"),
+        barcodes_empty = _results("droplet_utils/{sample}/barcodes_empty.txt"),
+    output:
+        counts_nuclei = _results("counts_protein_coding/{sample}/counts_nuclei.rds"),
+        counts_empty = _results("counts_protein_coding/{sample}/counts_empty.rds"),
+    params:
+        input_10x_dir = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw"),
     conda:
         "Renv"
     shell:
         """
-        Rscript workflow/scripts/demultiplexing_plots.R \
-            --kin0 {input.kin0} \
-            --kinMat {input.kinMat} \
-            --kinIds {input.kinIds} \
-            --donors "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107" \
-            --genoraw {input.genoraw} \
+        Rscript workflow/scripts/prepare_rna_counts.R \
+            --input_10x_dir {params.input_10x_dir} \
+            --barcodes_nuclei {input.barcodes_nuclei} \
+            --barcodes_empty {input.barcodes_empty} \
+            --counts_nuclei {output.counts_nuclei} \
+            --counts_empty {output.counts_empty}
+        """
+
+
+rule seurat_prelim:
+    input:
+        counts = _results("counts_protein_coding/{sample}/counts_nuclei.rds"),
+    output:
+        _results("seurat_prelim/{sample}/seurat_obj.rds"),
+        _results("seurat_prelim/{sample}/seurat_clusters.csv"),
+    params:
+        outdir = _results("seurat_prelim/{sample}"),
+        resolution = 0.1,
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/run_seurat.R \
+            --counts {input.counts} \
+            --resolution {params.resolution} \
             --outdir {params.outdir}
         """
 
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Aggregate signal plots
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### USING BAM
-rule ngs_plots:
-    input:
-        bam =  _results("cellranger/outs/possorted_genome_bam.bam"),
-        tss = "results/multiome/features/tss_nonoverlapping_genes.bed",
-        intergenic = "results/multiome/features/atac_summits_intergenic.bed",
-    output:
-        config = _results("ngsplot/{sample}/ngsplot_config.txt"),
-        pdf = _results("ngsplot/{sample}.avgprof.pdf"),
-    params:
-        outdir = _results("ngsplot/{sample}"),
-    shell:
-        """
-        ## make config
-        echo -e "{input.bam}\t{input.tss}\tTSS" > {output.config}
-        echo -e "{input.bam}\t{input.intergenic}\tIntergenic_Summit" >> {output.config}
-
-        ## run ngs
-        export NGSPLOT=/lab/work/ccrober/sw/ngsplot
-        ngs.plot.r -G hg38 -R bed -C {output.config} -O {params.outdir} -L 1000
-        """
-
-### USING STRANDED BIGWIGS
-rule bam_to_bigwig:
-    input:
-        bam = _results("cellranger/outs/possorted_genome_bam.bam"),
-        blacklist = config['blacklist'],
-    output:
-        bw =  _results("tracks/{sample}.TPM.{strand}.bw"),
-    params:
-        strand = "{strand}",
-    conda:
-        "deeptools"
-    shell:
-        """
-        bamCoverage -b {input.bam} -o {output.bw} \
-            --normalizeUsing BPM \
-            --filterRNAstrand {params.strand} \
-            --numberOfProcessors 20 \
-            --blackListFileName {input.blacklist}
-        """
-
-rule deeptools_matrix:
-    input:
-        bws = expand(_results("scafe/ctss_to_bigwig/{{sample}}/wig/{{sample}}.cpm.{strand}.bw"), strand=['fwd','rev']),
-        tss = "results/multiome/features/tss_nonoverlapping_genes.bed",
-        intergenic = "results/multiome/features/atac_summits_intergenic.bed",
-    output:
-        matrix = _results("deeptools/{sample}/matrix.mat.gz"),
-    conda:
-        "deeptools",
-    shell:
-        """
-        computeMatrix reference-point -S {input.bws} \
-            -R {input.tss} {input.intergenic}\
-            --referencePoint center \
-            --upstream 1000 \
-            --downstream 1000 \
-            -o {output.matrix} \
-            --missingDataAsZero \
-            --numberOfProcessors 20
-        """
-
-
-rule deeptools_plot:
-    input:
-        matrix = _results("deeptools/{sample}/matrix.mat.gz"),
-    output:
-        png = _results("deeptools/{sample}/profile_plot_tss_vs_intergenic.png"),
-    conda:
-        "deeptools",
-    shell:
-        """
-        plotProfile -m {input.matrix} \
-            -out {output.png} \
-            --numPlotsPerRow 1 \
-            --perGroup \
-            --plotTitle "Aggregate signal around TSS or intergenic ATAC-seq summits"
-        """
-
-
-
-
-# rule scafe:
+# rule doublet_filtering:
 #     input:
+#         seurat_obj = _results("seurat_prelim/{sample}/seurat_obj.rds"),
+#         doublets = "results/demultiplex/demuxlet-unfiltered/{sample}/doublets.txt",
+#         map = _results("cross_modality_qc/{sample}/cross_modality_qc.txt"),
+#         counts =  _results("counts_protein_coding/{sample}/counts_nuclei.rds"),
 #     output:
-#     container:
-#         "workflow/envs/scafe_latest.sif"
-#     shell:
-#         """
-#         singularity shell --writable  workflow/envs/scafe_latest.sif
-#         PATH=/SCAFE/scripts:$PATH
-#         LC_ALL=C
-#
-#         SINGULARITYENV_APPEND_PATH=/SCAFE/scripts singularity exec --writable --cleanenv workflow/envs/scafe_latest.sif scafe.workflow.sc.solo --help
-#
-#         #singularity exec --writable --env APPEND_PATH=/SCAFE/scripts --env LC_ALL=C  scafe.workflow.sc.solo --help
-#         """
-
-# rule qc_plots_by_sample:
-#     input:
-#         txt = _results("nf_gex_results/qc/{sample}-hg38.qc.txt"),
-#     output:
-#          _results("fiveprime_qc/{sample}/barcodes_empty.txt"),
-#          _results("fiveprime_qc/{sample}/barcodes_nuclei.txt"),
-#          _results("fiveprime_qc/{sample}/qc_grid_unfiltered.png"),
-#          _results("fiveprime_qc/{sample}/qc_grid_prefiltered.png"),
-#          _results("fiveprime_qc/{sample}/qc_grid_postfiltering.png"),
-#     params:
-#         outdir = _results("fiveprime_qc/{sample}"),
-#         sample = "{sample}",
-#     shell:
-#         """
-#         Rscript workflow/scripts/fiveprime_qc.R --input_txt {input.txt} --outdir {params.outdir} --sample {params.sample}
-#         """
-#
-#
-# rule prepare_rna_counts:
-#     input:
-#         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
-#         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv"),
-#         barcodes_nuclei = _results("fiveprime_qc/{sample}/barcodes_nuclei.txt"),
-#         barcodes_empty = _results("fiveprime_qc/{sample}/barcodes_empty.txt"),
-#     output:
-#         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/genes.tsv"),
-#         counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
-#         counts_empty = _results("counts_by_sample_gex/{sample}/counts_empty.rds"),
-#     params:
-#         input_10x_dir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
+#         counts = _results("counts_protein_coding/{sample}/counts_nuclei_no_doublets.rds"),
+#         png = _results("seurat_prelim/{sample}/seurat_prelim_umap_doublets.png"),
 #     conda:
 #         "Renv"
 #     shell:
 #         """
-#         ln -s --relative --force {params.input_10x_dir}/features.tsv {params.input_10x_dir}/genes.tsv
-#         Rscript workflow/scripts/prepare_rna_counts.R \
-#             --input_10x_dir {params.input_10x_dir} \
-#             --barcodes_nuclei {input.barcodes_nuclei} \
-#             --barcodes_empty {input.barcodes_empty} \
-#             --counts_nuclei {output.counts_nuclei} \
-#             --counts_empty {output.counts_empty}
+#         Rscript workflow/scripts/doublet_filtering.R \
+#             --seurat_obj {input.seurat_obj} \
+#             --doublets {input.doublets} \
+#             --map {input.map} \
+#             --input_counts {input.counts} \
+#             --output_counts {output.counts} \
+#             --plotfile {output.png}
 #         """
 
 
-# #alignment
-# rule starsolo:
-#     input:
-#         insert_fastqs
-#         barcode_fastqs
-#     ouput:
-#         bam
-#         counts
-#     params:
-#         sample=
-#         star_index=
-#         gtf_file=
-#         soloUMIlen=
-#         barcode_whitelist=
-#     shell:
-#         """
-#         STAR --soloBarcodeReadLength 0 \
-#             --runThreadN 10 \
-#             --outFileNamePrefix {params.sample}. \
-#             --genomeLoad NoSharedMemory \
-#             --runRNGseed 789727 \
-#             --readFilesCommand gunzip -c \
-#             --outSAMattributes NH HI nM AS CR CY CB UR UY UB sM GX GN \
-#             --genomeDir {params.star_index} \
-#             --outSAMtype BAM SortedByCoordinate \
-#             --outSAMunmapped Within KeepPairs \
-#             --sjdbGTFfile {params.gtf_file} \
-#             --soloType Droplet \
-#             --soloUMIlen {params.soloUMIlen} \
-#             --soloFeatures Transcript3p Gene GeneFull GeneFull_ExonOverIntron GeneFull_Ex50pAS SJ Velocyto \
-#             --soloMultiMappers Uniform PropUnique EM Rescue \
-#             --soloUMIfiltering MultiGeneUMI \
-#             --soloCBmatchWLtype 1MM_multi_pseudocounts \
-#             --soloCellFilter None \
-#             --soloCBwhitelist {params.barcode_whitelist} \
-#             --readFilesIn {insert_fastq} {barcode_fastq}
-#         """
+rule decontx_prelim:
+    input:
+        #counts_nuclei = _results("counts_protein_coding/{sample}/counts_nuclei_no_doublets.rds"),
+        counts_nuclei = _results("counts_protein_coding/{sample}/counts_nuclei.rds"),
+        counts_empty = _results("counts_protein_coding/{sample}/counts_empty.rds"),
+        clusters = _results("seurat_prelim/{sample}/seurat_clusters.csv"),
+    output:
+        _results("decontx_prelim/{sample}/counts_low_contamination_raw.rds"),
+    params:
+        outdir = _results("decontx_prelim/{sample}"),
+        max_contamination = 0.3,
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/run_decontx.R \
+            --counts_nuclei {input.counts_nuclei} \
+            --counts_empty {input.counts_empty} \
+            --clusters {input.clusters} \
+            --max_contamination {params.max_contamination} \
+            --outdir {params.outdir}
+        """
+
+rule seurat_round2:
+    input:
+        counts = _results("decontx_prelim/{sample}/counts_low_contamination_raw.rds"),
+    output:
+        _results("seurat_round2/{sample}/seurat_obj.rds"),
+        _results("seurat_round2/{sample}/seurat_clusters.csv"),
+    params:
+        outdir = _results("seurat_round2/{sample}"),
+        resolution = 0.1,
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/run_seurat.R \
+            --counts {input.counts} \
+            --resolution {params.resolution} \
+            --outdir {params.outdir}
+        """
+
+
+rule decontx_round2:
+    input:
+        counts_nuclei = _results("decontx_prelim/{sample}/counts_low_contamination_raw.rds"),
+        counts_empty = _results("counts_protein_coding/{sample}/counts_empty.rds"),
+        clusters = _results("seurat_round2/{sample}/seurat_clusters.csv"),
+    output:
+        results = _results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"),
+    conda:
+        "Renv"
+    params:
+        outdir = _results("decontx_round2/{sample}"),
+        max_contamination = 0.3,
+    shell:
+        """
+        Rscript workflow/scripts/run_decontx.R \
+            --counts_nuclei {input.counts_nuclei} \
+            --counts_empty {input.counts_empty} \
+            --clusters {input.clusters} \
+            --max_contamination {params.max_contamination} \
+            --outdir {params.outdir}
+        """
+
+
+rule seurat_round3:
+    input:
+        counts = _results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"),
+    output:
+        _results("seurat_round3/{sample}/seurat_obj.rds"),
+        _results("seurat_round3/{sample}/seurat_clusters.csv"),
+    params:
+        outdir = _results("seurat_round3/{sample}"),
+        resolution = 0.1,
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/run_seurat.R \
+            --counts {input.counts} \
+            --resolution {params.resolution} \
+            --outdir {params.outdir}
+        """

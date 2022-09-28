@@ -6,9 +6,23 @@ __default__:
   output: "logs/smk.fiveprime.{rule}.{wildcards}.out"
   time: "4:00:00"
 
-#raw_fastqc:
-#  mem: "500M"
-#  time: "2:00:00"
+
+cellranger:
+   mem: "50G"
+   cpus: "10"
+   time: "2-00:00:00"
+
+bam_autosomes_sorted:
+   cpus: "10"
+   time: "3-00:00:00"
+
+starsolo:
+   cpus: "10"
+   mem: "70G"
+   time: "3-00:00:00"
+
+qc:
+   mem: "20G"
 
 dropkick:
    cpus: "2"

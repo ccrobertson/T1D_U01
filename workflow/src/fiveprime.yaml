@@ -1,25 +1,21 @@
-#name: "5125-NM"
-#demuxlet_report: "/lab/data/seqcore/5125-NM/DemuxStats_5125-NM.csv"
-#fastq_dir: "/lab/data/seqcore/5125-NM/fastqs_5125-NM"
-#samples:
-#  - Sample_5125-NM-1-5GEX
-#  - Sample_5125-NM-2-5GEX
-#  - Sample_5125-NM-3-5GEX
-#  - Sample_5125-NM-4-5GEX
-#  - Sample_5125-NM-5-5GEX
-#  - Sample_5125-NM-6-5GEX
-#  - Sample_5125-NM-7-5GEX
-#  - Sample_5125-NM-8-5GEX
+name: "fiveprime"
 
-
-name: "5125-NM-1-rerun"
-demuxlet_report: "results/fiveprime/5125-NM-1-rerun/DemuxStats_5125-NM_reformatted.csv"
-fastq_dir: "/lab/data/seqcore/5125-NM-1/fastqs_5125-NM"
-samples:
-   - Sample_5125-NM-1-5GEX
-
-
-genotyped_donors: "results/imputation/2022_02_16_T1D_genotypes/donors.txt"
-donor_genotypes: "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf"
+runs:
+  5125-NM-1:
+    bcl2fq_report: "data/5125-NM-1/DemuxStats_5125-NM.csv"
+    fastq_dir: "data/5125-NM-1/fastqs_5125-NM"
+    batches_in_run:
+      NM-1: "5125-NM-1-5GEX_AAGATTGG-AAATCCCG"
+  5125-NM-2-8:
+    bcl2fq_report: "data/5125-NM_resequenced_2-8/DemuxStats_5125-NM.csv"
+    fastq_dir: "data/5125-NM_resequenced_2-8/fastqs_5125-NM"
+    batches_in_run:
+      NM-2: "5125-NM-2_TGTAGTCA-TACGATCA"
+      NM-3: "5125-NM-3_ACAATGTG-TAACGGTA"
+      NM-4: "5125-NM-4_GTGGATCA-CAGGGTTG"
+      NM-5: "5125-NM-5_TCTACCAT-GACTCTCC"
+      NM-6: "5125-NM-6_CAATCCCG-TACTACTC"
+      NM-7: "5125-NM-7_TTAATACG-ACCCGAGG"
+      NM-8: "5125-NM-8_ATGGAGGG-AATGGGTT"
 
 blacklist: "resources/hg38/ENCFF356LFX.bed"

@@ -1,0 +1,6 @@
+name: "scafe"
+
+sets:
+  all:
+    samples:
+      Sample_5125-NM-1_NM-1: "results/fiveprime/starsolo/Sample_5125-NM-1_NM-1/starsolo.Aligned.sortedByCoord.out.bam"

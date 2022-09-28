@@ -1,0 +1,25 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.scafe.{rule}.{wildcards}.out"
+  time: "12:00:00"
+
+
+cellranger_bam_by_sample_by_cluster:
+  cpus: "10"
+
+starsolo_bam_by_sample_by_cluster:
+  cpus: "10"
+
+merge_bams:
+  cpus: "15"
+
+scafe_by_sample:
+  mem: "60G"
+  cpus: "10"
+
+scafe_by_cluster:
+  mem: "30G"
+  cpus: "10"

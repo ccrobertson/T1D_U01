@@ -1,0 +1,80 @@
+name: "macs2"
+
+blacklist: "resources/hg38/ENCFF356LFX.bed"
+
+sets:
+  all:
+    samples:
+      Sample_5124-NM_NM-1: "results/multiome/nf_atac_results/prune/Sample_5124-NM-1-hg38.pruned.bam"
+      Sample_5124-NM_NM-2: "results/multiome/nf_atac_results/prune/Sample_5124-NM-2-hg38.pruned.bam"
+      Sample_5124-NM_NM-3: "results/multiome/nf_atac_results/prune/Sample_5124-NM-3-hg38.pruned.bam"
+      Sample_5124-NM_NM-4: "results/multiome/nf_atac_results/prune/Sample_5124-NM-4-hg38.pruned.bam"
+      Sample_5124-NM_NM-5: "results/multiome/nf_atac_results/prune/Sample_5124-NM-5-hg38.pruned.bam"
+      Sample_5124-NM_NM-6: "results/multiome/nf_atac_results/prune/Sample_5124-NM-6-hg38.pruned.bam"
+      Sample_5124-NM_NM-7: "results/multiome/nf_atac_results/prune/Sample_5124-NM-7-hg38.pruned.bam"
+      Sample_5124-NM_NM-8: "results/multiome/nf_atac_results/prune/Sample_5124-NM-8-hg38.pruned.bam"
+  noNM3:
+    samples:
+      Sample_5124-NM_NM-1: "results/multiome/nf_atac_results/prune/Sample_5124-NM-1-hg38.pruned.bam"
+      Sample_5124-NM_NM-2: "results/multiome/nf_atac_results/prune/Sample_5124-NM-2-hg38.pruned.bam"
+      Sample_5124-NM_NM-4: "results/multiome/nf_atac_results/prune/Sample_5124-NM-4-hg38.pruned.bam"
+      Sample_5124-NM_NM-5: "results/multiome/nf_atac_results/prune/Sample_5124-NM-5-hg38.pruned.bam"
+      Sample_5124-NM_NM-6: "results/multiome/nf_atac_results/prune/Sample_5124-NM-6-hg38.pruned.bam"
+      Sample_5124-NM_NM-7: "results/multiome/nf_atac_results/prune/Sample_5124-NM-7-hg38.pruned.bam"
+      Sample_5124-NM_NM-8: "results/multiome/nf_atac_results/prune/Sample_5124-NM-8-hg38.pruned.bam"
+
+
+
+# samples:
+#  Sample_5124-NM_NM-1:
+#   batch: "NM-1"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-1-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-1-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-1-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-1-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-2:
+#   batch: "NM-2"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-2-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-2-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-2-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-2-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-3:
+#   batch: "NM-3"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-3-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-3-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-3-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-3-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-4:
+#   batch: "NM-4"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-4-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-4-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-4-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-4-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-5:
+#   batch: "NM-5"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-5-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-5-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-5-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-5-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-6:
+#   batch: "NM-6"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-6-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-6-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-6-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-6-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-7:
+#   batch: "NM-7"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-7-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-7-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-7-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-7-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5124-NM_NM-8:
+#   batch: "NM-8"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-8-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-8-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-8-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-8-hg38/pass_qc_barcodes_gex.txt"
+#  Sample_5125-NM-1_NM-1:
+#   batch: "NM-1"
+#   bam_unfiltered: "results/fiveprime/starsolo/Sample_5125-NM-1_NM-1/starsolo.Aligned.sortedByCoord.out.bam"
+#   barcodes: "results/fiveprime/droplet_utils/Sample_5125-NM-1_NM-1/barcodes_nuclei.txt"

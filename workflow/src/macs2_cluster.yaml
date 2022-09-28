@@ -1,0 +1,19 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.macs2.{rule}.{wildcards}.out"
+  time: "4:00:00"
+
+
+bam_by_sample_by_cluster:
+  cpus: "10"
+
+
+merge_bams:
+   cpus: "15"
+
+
+run_macs2:
+  mem: "15G"

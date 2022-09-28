@@ -1,0 +1,23 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.demultiplex.{rule}.{wildcards}.out"
+  time: "4:00:00"
+
+souporcell:
+  cpus: "10"
+  time: "2-00:00"
+  mem: "15G"
+
+demuxlet:
+  time: "5-00:00"
+  mem: "60G"
+
+
+demultiplex_by_sample:
+  mem: "20G"
+
+demultiplex:
+  mem: "20G"

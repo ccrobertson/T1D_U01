@@ -1,0 +1,61 @@
+name: "demultiplex"
+
+donor_genotypes: "results/genotypes/imputation_results_combined/all_chromosomes.donors_only.maf_gt_1pct__rsq_gt_pt95.dose.vcf.gz"
+donor_genotypes_unzipped: "results/genotypes/imputation_results_combined/all_chromosomes.donors_only.maf_gt_1pct__rsq_gt_pt95.dose.vcf"
+genotyped_donors: "results/genotypes/genotyped_donors.txt"
+
+
+
+# samples:
+#  5124-NM-1:
+#   id: "NM-1"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-1-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-1-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-1-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-1-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-2:
+#   id: "NM-2"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-2-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-2-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-2-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-2-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-3:
+#   id: "NM-3"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-3-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-3-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-3-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-3-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-4:
+#   id: "NM-4"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-4-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-4-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-4-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-4-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-5:
+#   id: "NM-5"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-5-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-5-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-5-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-5-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-6:
+#   id: "NM-6"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-6-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-6-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-6-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-6-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-7:
+#   id: "NM-7"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-7-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-7-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-7-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-7-hg38/pass_qc_barcodes_gex.txt"
+#  5124-NM-8:
+#   id: "NM-8"
+#   bam_auto: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-8-hg38/prune_barcodes_gex_exclude_ambient_genes_auto.bam"
+#   bam_unfiltered: "results/multiome/nf_gex_results/prune/Sample_5124-NM-8-hg38.before-dedup.bam"
+#   bam_p01: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-8-hg38/prune_barcodes_gex_exclude_ambient_genes_0.01.bam"
+#   barcodes: "results/multiome/bam_pass_qc_barcodes/Sample_5124-NM-8-hg38/pass_qc_barcodes_gex.txt"
+#  5125-NM-1:
+#   id: "NM-1"
+#   bam_unfiltered: "results/fiveprime/starsolo/Sample_5125-NM-1_NM-1/starsolo.Aligned.sortedByCoord.out.bam"
+#   barcodes: "results/fiveprime/droplet_utils/Sample_5125-NM-1_NM-1/barcodes_nuclei.txt"

@@ -6,56 +6,26 @@ from functools import partial
 import pandas as pd
 import math
 
-_results = partial(os.path.join, "results/multiome")
+_data = partial(os.path.join, "data")
+_results = partial(os.path.join, "results", name)
 _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-configfile: _results("Sample_islet_list_for_multiomics_Batches_long_format_fixedHPAP093_with_libname.json")
+configfile: _data("nandini_run_design.json")
+batches = config["batches"].keys()
 samples = config["samples"]
-ambient_gene_thresholds = ["auto", "0.01", "0.3"]
-souporcell_k = [1,2,3,4,5,6]
-
 wildcard_constraints:
    sample="Sample[^/]*",
 
 IONICE = 'ionice -c2 -n7'
 
-def iterate_subjects_by_batch(samplename):
-     return config["batches"][samplename].keys()
 
-def genotyped_subjects_by_batch_as_string(samplename, genotyped_donors):
-    donors_in_batch = config["batches"][samplename].keys()
-    donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-    overlap = ' '.join(list(set(donors_in_batch) & set(donors_in_vcf)))
-    return overlap
 
-def genotyped_subjects_by_batch_as_string2(samplename, genotyped_donors):
-    donors_in_batch = config["batches"][samplename].keys()
-    donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-    overlap = ','.join(list(set(donors_in_batch) & set(donors_in_vcf)))
-    return overlap
-
-# def count_genotyped_subjects_by_batch(samplename, genotyped_donors):
-#     donors_in_batch = config["batches"][samplename].keys()
-#     donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-#     overlap = list(set(donors_in_batch) & set(donors_in_vcf))
-#     return len(overlap)
-
-def count_subjects_by_batch(samplename):
-    return len(config["batches"][samplename].keys())
-
-def iterate_demuxlet_samples(demuxlet_report):
-    d = pd.read_csv(demuxlet_report)
+def iterate_samples(bcl2fq_report):
+    d = pd.read_csv(bcl2fq_report)
     sample_ids = d["Sample_ID"].tolist()
     return sample_ids
-
-def calculate_max_missing_by_batch(samplename, genotyped_donors):
-    n_subjects = len(config["batches"][samplename].keys())
-    n_donors = pd.read_table(genotyped_donors, header=None).shape[0]
-    max_missing_rate = math.ceil((n_subjects-1)/(n_donors+n_subjects)*100, )/100
-    return max_missing_rate
-
 
 
 rule all:
@@ -86,41 +56,21 @@ rule all:
         #~~~~~~~~ preclustering and decontamination
         #expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample="Sample_5124-NM-2-hg38"),
         #expand(_results("decontx_round2/{sample}/counts_low_contamination_decontaminated.rds"), sample=samples),
-        # post decontx clustering
+        #~~~~~~~~ post decontx clustering
         #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample="Sample_5124-NM-2-hg38"),
         #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
-        #~~~~~~~~ souporcell
-        #expand(_results("souporcell_gex_{p}/{sample}/cluster_genotypes_reformatted.vcf.gz"), sample="Sample_5124-NM-2-hg38",p=ambient_gene_thresholds),
-        #expand(_results("souporcell_atac/{sample}/cluster_genotypes_reformatted.vcf.gz"), sample="Sample_5124-NM-2-hg38"),
-        #~~~~~~~~ demuxlet
-        expand(_results("demuxlet/filtered_bams/{sample}.best"), sample="Sample_5124-NM-2-hg38"),
-        #~~~~~~~~ demultiplexing
-        #expand(_results("demultiplex_by_sample_gex_{p}_known_genotypes/{sample}/{k}/corrplot_r_by_donor.png"),
-        #    sample=['Sample_5124-NM-1-hg38','Sample_5124-NM-2-hg38','Sample_5124-NM-3-hg38','Sample_5124-NM-4-hg38'], k=4, p=ambient_gene_thresholds),
-        #expand(_results("demultiplex_by_sample_gex_{p}_known_genotypes/{sample}/{k}/corrplot_r_by_donor.png"),
-        #    sample=['Sample_5124-NM-5-hg38','Sample_5124-NM-6-hg38','Sample_5124-NM-7-hg38','Sample_5124-NM-8-hg38'], k=5, p=ambient_gene_thresholds),
-        #expand(_results("demultiplex_by_sample_gex_{p}/{sample}/{k}/corrplot_r_by_donor.png"), sample=samples, k = souporcell_k, p=ambient_gene_thresholds),
-        #expand(_results("demultiplex_gex_{p}/{k}/corrplot_r_by_donor.png"), k = souporcell_k, p=ambient_gene_thresholds),
-        #_results("demultiplex_gex_auto/6/corrplot_r_by_donor.png"),
-        #~~~~~~~ get tracks
-        #expand(_results("tracks_by_sample/gex.{sample}.TPM.bw"), sample=samples),
-        #expand(_results("tracks_by_sample/gex.{sample}.TPM.{strand}.bw"), sample=samples, strand=['forward','reverse']),
-        #~~~~~ rerun macs2 to get summits
-        #expand(_results("macs2/{sample}_summits.bed"), sample="Sample_5124-NM-1-hg38"),
-        #expand(_results("ngsplot/{sample}/ngsplot_multiplot.png"), sample="Sample_5124-NM-1-hg38"),
-        expand(_results("deeptools/{sample}/profile_plot_tss_vs_intergenic.png"), sample="Sample_5124-NM-1-hg38"),
 
 
 
 rule symlinks_atac:
     input:
-        demuxlet_report_atac = config["demuxlet_report_atac"],
+        bcl2fq_report_atac = config["bcl2fq_report_atac"],
     output:
         json = _results("nf_atac_config.json"),
     params:
         indir = config["fastq_dir_atac"],
         outdir = _results("fastq_atac"),
-        samples = iterate_demuxlet_samples(config["demuxlet_report_atac"]),
+        samples = iterate_samples(config["bcl2fq_report_atac"]),
     shell:
         """
         createSymLinksATAC () {{
@@ -138,19 +88,19 @@ rule symlinks_atac:
             createSymLinksATAC {params.indir} {params.outdir} $sample
         done
 
-        python workflow/scripts/build_multiome_json.py --demuxlet_report {input.demuxlet_report} --fastq_dir {params.outdir} --modality ATAC > {output.json}
+        python workflow/scripts/build_multiome_json.py --bcl2fq_report {input.bcl2fq_report} --fastq_dir {params.outdir} --modality ATAC > {output.json}
         """
 
 
 rule symlinks_gex:
     input:
-        demuxlet_report = config["demuxlet_report_gex"],
+        bcl2fq_report = config["bcl2fq_report_gex"],
     output:
         json = _results("nf_gex_config.json"),
     params:
         indir = config["fastq_dir_gex"],
         outdir = _results("fastq_gex"),
-        samples = iterate_demuxlet_samples(config["demuxlet_report_gex"]),
+        samples = iterate_samples(config["bcl2fq_report_gex"]),
     shell:
         """
         createSymLinksGEX () {{
@@ -167,7 +117,7 @@ rule symlinks_gex:
             createSymLinksGEX {params.indir} {params.outdir} $sample
         done
 
-        python workflow/scripts/build_multiome_json.py --demuxlet_report {input.demuxlet_report} --fastq_dir {params.outdir} --modality GEX > {output.json}
+        python workflow/scripts/build_multiome_json.py --bcl2fq_report {input.bcl2fq_report} --fastq_dir {params.outdir} --modality GEX > {output.json}
         """
 
 ## INSERT RULE FOR RUNNING ATAC NEXTFLOW
@@ -175,20 +125,6 @@ rule symlinks_gex:
 
 ## INSERT RULE FOR RUNNING GEX NEXTFLOW
 #rule_nf_gex:
-
-## NEED TO UPDATE THIS TO PROVIDE SEPARATE BIGWIGS FOR EACH STRAND
-rule bam_to_bigwig:
-    input:
-        bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        blacklist = config["blacklist"],
-    output:
-        bw =  _results("tracks_by_sample/gex.{sample}.TPM.bw"),
-    conda:
-        "general"
-    shell:
-        """
-        bamCoverage -b {input.bam} -o {output.bw} --normalizeUsing BPM --numberOfProcessors 8 --blackListFileName {input.blacklist}
-        """
 
 #Some downstream programs require gzipped output, while others need it unzipped
 #so we will keep it available in both forms
@@ -365,14 +301,35 @@ rule cross_modality_visualization:
             --sample {params.sample}
         """
 
+rule filter_bams_for_nuclei:
+    input:
+        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+        atac_bam = _results("nf_atac_results/prune/{sample}.pruned.bam"),
+        barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
+    output:
+        gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
+        atac_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_atac.bam"),
+    params:
+        outdir = _results("bam_pass_qc_barcodes/{sample}"),
+    container:
+        "workflow/envs/arushi_general.simg"
+    shell:
+        """
+        awk 'NR>1 {{print $1}}' {input.barcodes_nuclei} > {params.outdir}/pass_qc_barcodes_gex.txt
+        awk 'NR>1 {{print $2}}' {input.barcodes_nuclei} > {params.outdir}/pass_qc_barcodes_atac.txt
+        samtools view -h -b -@ 10 -D CB:{params.outdir}/pass_qc_barcodes_gex.txt {input.gex_bam} > {output.gex_bam}
+        samtools view -h -b -@ 10 -D CB:{params.outdir}/pass_qc_barcodes_atac.txt {input.atac_bam} > {output.atac_bam}
+        samtools index {output.gex_bam}
+        samtools index {output.atac_bam}
+        """
 
-
+#### UPDATE BARCODE INPUT FILES HERE TO BE ONLY GEX BARCODES
 rule prepare_rna_counts:
     input:
         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv"),
-        barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
-        barcodes_empty = _results("cross_modality_qc/{sample}/barcodes_empty.txt"),
+        barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei_gex.txt"),
+        barcodes_empty = _results("cross_modality_qc/{sample}/barcodes_empty_gex.txt"),
     output:
         _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/genes.tsv"),
         counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
@@ -392,6 +349,47 @@ rule prepare_rna_counts:
             --counts_empty {output.counts_empty}
         """
 
+rule define_ambient_gene_regions:
+    input:
+        counts_empty = _results("counts_by_sample_gex/{sample}/counts_empty.rds"),
+        counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
+        gtf = _resources("hg38/gencode.v39.annotation.gtf"),
+    output:
+        regions = _results("bam_pass_qc_barcodes/{sample}/ambient_gene_regions_{p}.bed"),
+    params:
+        outdir = _results("bam_pass_qc_barcodes/{sample}"),
+        p = "{p}",
+    conda:
+        "Renv"
+    wildcard_constraints:
+        p = "auto|0.01|0.3"
+    shell:
+        """
+        Rscript workflow/scripts/define_ambient_gene_regions.R \
+            --counts_empty {input.counts_empty} \
+            --counts_nuclei {input.counts_nuclei} \
+            --gtf {input.gtf} \
+            --p {params.p} \
+            --outdir {params.outdir}
+        """
+
+rule filter_bams_for_ambient_genes:
+    input:
+        #gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
+        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+        regions = _results("bam_pass_qc_barcodes/{sample}/ambient_gene_regions_{p}.bed"),
+    output:
+        gex_bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
+        gex_bam_discarded = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_discarded_{p}.bam"),
+    container:
+        "workflow/envs/arushi_general.simg"
+    wildcard_constraints:
+        p = "auto|0.01|0.3"
+    shell:
+        """
+        samtools view -h -b -@ 10 -L {input.regions} -U {output.gex_bam} {input.gex_bam} > {output.gex_bam_discarded}
+        samtools index {output.gex_bam}
+        """
 
 rule seurat_prelim:
     input:
@@ -517,503 +515,4 @@ rule seurat_round3:
             --counts {input.counts} \
             --resolution {params.resolution} \
             --outdir {params.outdir}
-        """
-
-
-rule filter_bams_for_nuclei:
-    input:
-        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        atac_bam = _results("nf_atac_results/prune/{sample}.pruned.bam"),
-        barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
-    output:
-        gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
-        atac_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_atac.bam"),
-    params:
-        outdir = _results("bam_pass_qc_barcodes/{sample}"),
-    container:
-        "workflow/envs/arushi_general.simg"
-    shell:
-        """
-        awk 'NR>1 {{print $1}}' {input.barcodes_nuclei} > {params.outdir}/pass_qc_barcodes_gex.txt
-        awk 'NR>1 {{print $2}}' {input.barcodes_nuclei} > {params.outdir}/pass_qc_barcodes_atac.txt
-        samtools view -h -b -@ 10 -D CB:{params.outdir}/pass_qc_barcodes_gex.txt {input.gex_bam} > {output.gex_bam}
-        samtools view -h -b -@ 10 -D CB:{params.outdir}/pass_qc_barcodes_atac.txt {input.atac_bam} > {output.atac_bam}
-        samtools index {output.gex_bam}
-        samtools index {output.atac_bam}
-        """
-
-rule define_ambient_gene_regions:
-    input:
-        counts_empty = _results("counts_by_sample_gex/{sample}/counts_empty.rds"),
-        counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
-        gtf = _resources("hg38/gencode.v39.annotation.gtf"),
-    output:
-        regions = _results("bam_pass_qc_barcodes/{sample}/ambient_gene_regions_{p}.bed"),
-    params:
-        outdir = _results("bam_pass_qc_barcodes/{sample}"),
-        p = "{p}",
-    conda:
-        "Renv"
-    wildcard_constraints:
-        p = "auto|0.01|0.3"
-    shell:
-        """
-        Rscript workflow/scripts/define_ambient_gene_regions.R \
-            --counts_empty {input.counts_empty} \
-            --counts_nuclei {input.counts_nuclei} \
-            --gtf {input.gtf} \
-            --p {params.p} \
-            --outdir {params.outdir}
-        """
-
-rule filter_bams_for_ambient_genes:
-    input:
-        #gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
-        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        regions = _results("bam_pass_qc_barcodes/{sample}/ambient_gene_regions_{p}.bed"),
-    output:
-        gex_bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
-        gex_bam_discarded = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_discarded_{p}.bam"),
-    container:
-        "workflow/envs/arushi_general.simg"
-    wildcard_constraints:
-        p = "auto|0.01|0.3"
-    shell:
-        """
-        samtools view -h -b -@ 10 -L {input.regions} -U {output.gex_bam} {input.gex_bam} > {output.gex_bam_discarded}
-        samtools index {output.gex_bam}
-        """
-
-#https://www.protocols.io/view/instructional-tutorial-for-using-demuxlet-233ggqn.html
-rule demuxlet:
-    input:
-        bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_auto.bam"),
-        vcf = config["donor_genotypes"],
-    output:
-        _results("demuxlet/filtered_bams/{sample}.best"),
-    params:
-        outdir = _results("demuxlet/filtered_bams/{sample}"),
-        #donors = lambda wildcards: genotyped_subjects_by_batch_as_string2(wildcards.sample, config["genotyped_donors"]),
-        donors = "sample_list_NM1.txt",
-    container:
-         "/lab/work/arushiv/containers/demuxlet.sif"
-    shell:
-        """
-        demuxlet --sam {input.bam} \
-            --tag-group CB \
-            --tag-UMI UB \
-            --vcf {input.vcf} \
-            --field GP \
-            --sm-list {params.donors} \
-            --out {params.outdir}
-        """
-
-
-# # # MONITOR: logs/smk.multiome.souporcell_atac.sample\=Sample_5124-NM-3-hg38.out
-rule souporcell_gex:
-    input:
-        bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
-        barcodes=_results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.txt"),
-        fasta=_resources("hg38/hg38_cvb4.fa"),
-        common_variants=_resources("common_variants_grch38_fixed.vcf"),
-        donor_genotypes = config["donor_genotypes"],
-    output:
-        cluster_genotypes = _results("souporcell_gex_{p}/{sample}/{k}/cluster_genotypes.vcf"),
-    params:
-        outdir = _results("souporcell_gex_{p}/{sample}/{k}"),
-        #k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
-        k = "{k}",
-        threads=10,
-        sample = "{sample}",
-    wildcard_constraints:
-        k="\d",
-        p = "auto|0.01|0.3",
-    shell:
-        """
-        singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
-            -i {input.bam} \
-            -b {input.barcodes} \
-            -f {input.fasta} \
-            -t {params.threads} \
-            --cluster {params.k} \
-            --common_variants {input.common_variants} \
-            --skip_remap True \
-            -o {params.outdir}
-        """
-
-## NOTE: --ignore True and --no_umi option tells souporcell to ignore UMIs
-## (since this is ATAC-seq, there are no UMIs)
-rule souporcell_atac:
-    input:
-        bam = _results("nf_atac_results/prune/{sample}.pruned.bam"),
-        barcodes=_results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_atac.txt"),
-        fasta = _resources("hg38/hg38_cvb4.fa"),
-        common_variants = _resources("common_variants_grch38_fixed.vcf"),
-        donor_genotypes = config["donor_genotypes"],
-    output:
-        cluster_genotypes = _results("souporcell_atac/{sample}/{k}/cluster_genotypes.vcf"),
-    params:
-        outdir = _results("souporcell_atac/{sample}/{k}"),
-        #k = lambda wildcards: count_subjects_by_batch(wildcards.sample),
-        k = "{k}",
-        threads=10,
-        sample = "{sample}",
-    wildcard_constraints:
-        k="\d",
-        p = "auto|0.01|0.3",
-    shell:
-        """
-        singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
-            -i {input.bam} \
-            -b {input.barcodes} \
-            -f {input.fasta} \
-            --ignore True \
-            --no_umi True \
-            -t {params.threads} \
-            --cluster {params.k} \
-            --common_variants {input.common_variants} \
-            --skip_remap True \
-            -o {params.outdir}
-        """
-
-# # NEXT - explore a range of k
-# # https://github.com/wheaton5/souporcell/issues/7
-# #
-# # Issues about what happens when donors are missing from VCF
-# # https://github.com/wheaton5/souporcell/issues/77
-# # https://github.com/wheaton5/souporcell/issues/141
-rule souporcell_gex_known_genotypes:
-    input:
-        bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),
-        barcodes = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.txt"),
-        fasta = _resources("hg38/hg38_cvb4.fa"),
-        common_variants = _resources("common_variants_grch38_fixed.vcf"),
-        donor_genotypes = config["donor_genotypes"],
-    output:
-        # cluster_genotypes = expand(_results("souporcell_gex_{{p}}_known_genotypes/{{sample}}/{k}/cluster_genotypes.vcf"),
-        #     k = lambda wildcards: count_genotyped_subjects_by_batch(wildcards.sample, config["genotyped_donors"])),
-        cluster_genotypes = _results("souporcell_gex_{p}_known_genotypes/{sample}/{k}/cluster_genotypes.vcf"),
-    params:
-        outdir = _results("souporcell_gex_{p}_known_genotypes/{sample}/{k}"),
-        #k = lambda wildcards: count_genotyped_subjects_by_batch(wildcards.sample, config["genotyped_donors"]),
-        k = "{k}",
-        donor_list_as_string = lambda wildcards: genotyped_subjects_by_batch_as_string(wildcards.sample, config["genotyped_donors"]),
-        threads=10,
-        sample = "{sample}",
-    wildcard_constraints:
-        k="\d",
-        p = "auto|0.01|0.3",
-    shell:
-        """
-        singularity exec workflow/envs/souporcell_latest.sif souporcell_pipeline.py \
-            -i {input.bam} \
-            -b {input.barcodes} \
-            -f {input.fasta} \
-            -t {params.threads} \
-            --cluster {params.k} \
-            --known_genotypes {input.donor_genotypes} \
-            --known_genotypes_sample_names {params.donor_list_as_string} \
-            --skip_remap True \
-            -o {params.outdir}
-        """
-
-
-rule souporcell_fix_vcf:
-    input:
-        cluster_genotypes = _results("souporcell_{input}/{sample}/{k}/cluster_genotypes.vcf"),
-    output:
-        cluster_genotypes_reformatted = _results("souporcell_{input}/{sample}/{k}/cluster_genotypes_reformatted.vcf.gz"),
-    params:
-        sample = "{sample}",
-    wildcard_constraints:
-        k="\d",
-        p = "auto|0.01|0.3",
-        input="[^/]*",
-    conda:
-        "genetics"
-    shell:
-        """
-        awk -v OFS='\t' -v sample={params.sample} '$1!~/^#CHROM/ {{print $0}} $1~/^#CHROM/ {{for(i=10; i<=NF; ++i) $i=sample"_souporcell_"$i; print $0 }}' {input.cluster_genotypes} | grep -v BACKGROUND | bgzip > {output.cluster_genotypes_reformatted}
-        tabix -p vcf {output.cluster_genotypes_reformatted}
-        """
-
-rule demultiplex_by_sample:
-    input:
-        souporcell_vcf = _results("souporcell_{input}/{sample}/{k}/cluster_genotypes_reformatted.vcf.gz"),
-        imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
-    output:
-        kin0 =  _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.raw"),
-    params:
-        prefix = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered"),
-        max_missing = lambda wildcards: calculate_max_missing_by_batch(wildcards.sample, config["genotyped_donors"])
-    conda:
-        "genetics"
-    wildcard_constraints:
-        k="\d",
-        p = "auto|0.01|0.3",
-        input="[^/]*",
-    shell:
-        """
-        #merge souporcell and donor vcfs
-        bcftools merge -O z -o {params.prefix}.vcf.gz {input.souporcell_vcf} {input.imputed_vcf}
-        tabix -p vcf {params.prefix}.vcf.gz
-
-        #convert merged vcf to plink
-        plink --vcf {params.prefix}.vcf.gz --double-id --make-bed --out {params.prefix}
-
-        #filter merged vcf for missingness
-        plink --bfile {params.prefix} --geno {params.max_missing} --make-bed --out {params.prefix_filtered}
-
-        #run king relationship inference
-        plink2 --bfile {params.prefix_filtered} --make-king square --make-king-table --out {params.prefix_filtered}
-
-        #recode as alt allele count matrix
-        plink --bfile {params.prefix_filtered} --recodeA --out {params.prefix_filtered}
-        """
-
-
-rule demultiplex_by_sample_plots:
-    input:
-        kin0 = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("demultiplex_by_sample_{input}/{sample}/{k}/souporcell_clusters_and_donors_filtered.raw"),
-    output:
-        _results("demultiplex_by_sample_{input}/{sample}/{k}/corrplot_r_by_donor.png"),
-    params:
-        outdir = _results("demultiplex_by_sample_{input}/{sample}/{k}"),
-        donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107",
-    wildcard_constraints:
-        k="\d",
-        #p = "auto|0.01|0.3",
-        input="[^/]*",
-    conda:
-        "Renv"
-    shell:
-        """
-        Rscript workflow/scripts/demultiplexing_plots.R \
-            --kin0 {input.kin0} \
-            --kinMat {input.kinMat} \
-            --kinIds {input.kinIds} \
-            --donors "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107" \
-            --genoraw {input.genoraw} \
-            --outdir {params.outdir}
-        """
-
-
-rule demultiplex:
-    input:
-        souporcell_vcfs = expand(_results("souporcell_{{input}}/{sample}/{{k}}/cluster_genotypes_reformatted.vcf.gz"), sample=samples),
-        imputed_vcf = "results/imputation/2022_02_16_T1D_genotypes/imputation_results/chrALL.donors_only.maf_gt_0.01__rsq_gt_0.95.dose.vcf.gz",
-    output:
-        kin0 =  _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat =  _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds =  _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.raw"),
-    params:
-        prefix = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered"),
-        max_missing = 0.5,
-    conda:
-        "genetics"
-    wildcard_constraints:
-        k="\d",
-        p = "auto|0.01|0.3",
-        input="[^/]*",
-    shell:
-        """
-        #merge souporcell and donor vcfs
-        bcftools merge -O z -o {params.prefix}.vcf.gz {input.souporcell_vcfs} {input.imputed_vcf}
-        tabix -p vcf {params.prefix}.vcf.gz
-
-        #convert merged vcf to plink
-        plink --vcf {params.prefix}.vcf.gz --double-id --make-bed --out {params.prefix}
-
-        #filter merged vcf for missingness
-        plink --bfile {params.prefix} --geno {params.max_missing} --make-bed --out {params.prefix_filtered}
-
-        #run king relationship inference
-        plink2 --bfile {params.prefix_filtered} --make-king square --make-king-table --out {params.prefix_filtered}
-
-        #recode as alt allele count matrix
-        plink --bfile {params.prefix_filtered} --recodeA --out {params.prefix_filtered}
-        """
-
-rule demultiplex_plots:
-    input:
-        kin0 = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("demultiplex_{input}/{k}/souporcell_clusters_and_donors_filtered.raw"),
-    output:
-        _results("demultiplex_{input}/{k}/corrplot_r_by_donor.png"),
-    params:
-        outdir = _results("demultiplex_{input}/{k}"),
-        donors = "HPAP105,HPAP093,ICRH139,ICRH142,HPAP107",
-    wildcard_constraints:
-        k="\d",
-        #p = "auto|0.01|0.3",
-        input="[^/]*",
-    shell:
-        """
-        Rscript workflow/scripts/demultiplexing_plots.R \
-            --kin0 {input.kin0} \
-            --kinMat {input.kinMat} \
-            --kinIds {input.kinIds} \
-            --donors {params.donors} \
-            --genoraw {input.genoraw} \
-            --outdir {params.outdir}
-        """
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Aggregate signal plots
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### DEFINING INTERGENIC ATAC SUMMITS
-rule bamtobed:
-    input:
-        bam = "results/multiome/nf_atac_results/prune/{sample}.pruned.bam"
-    output:
-        bed = _results("macs2/{sample}.pruned.bed"),
-    container:
-        "workflow/envs/porchard_snatac_general_20220107.sif"
-    shell:
-        """
-        bedtools bamtobed -i {input.bam} > {output.bed}
-        """
-
-rule run_macs2:
-    input:
-        bed = _results("macs2/{sample}.pruned.bed"),
-    output:
-        bdg = _results("macs2/{sample}_treat_pileup.bdg"),
-        peaks = _results("macs2/{sample}_peaks.narrowPeak"),
-        summits = _results("macs2/{sample}_summits.bed"),
-    params:
-        outdir = _results("macs2"),
-        sample = "{sample}",
-    container:
-        "workflow/envs/porchard_snatac_general_20220107.sif"
-    shell:
-        """
-        macs2 callpeak -t {input.bed} \
-            -f BED \
-            -g hs \
-            --outdir {params.outdir} \
-            -n {params.sample} \
-            --bdg --SPMR \
-            --nomodel \
-            --shift -100 --extsize 200 \
-            --seed 762873 \
-            --call-summits \
-            --keep-dup all
-        """
-
-rule define_features:
-    input:
-        summits = _results("macs2/Sample_5124-NM-1-hg38_summits.bed"),
-        gtf = "resources/hg38/gencode.v39.annotation.gtf",
-    output:
-        _results("features/tss_nonoverlapping_genes.bed"),
-        _results("features/atac_summits_intergenic.bed"),
-        #_results("features/atac_summits_1kb_intergenic.bed"),
-        #_results("features/atac_summits_1kb_all.bed"),
-    params:
-        outdir = _results("features"),
-    shell:
-        """
-        Rscript workflow/scripts/define_features.R \
-            --summits {input.summits} \
-            --gtf {input.gtf} \
-            --outdir {params.outdir}
-        """
-
-
-### PLOTS WITH BAM
-rule ngs_plots:
-    input:
-        bam =  _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
-        tss = _results("features/tss_nonoverlapping_genes.bed"),
-        intergenic = _results("features/atac_summits_intergenic.bed"),
-    output:
-        config = _results("ngsplot/{sample}/ngsplot_config.txt"),
-        png = _results("ngsplot/{sample}/ngsplot_multiplot.png"),
-    params:
-        outdir = _results("ngsplot/{sample}"),
-    shell:
-        """
-        ## make config
-        echo -e "{input.bam}\t{input.tss}\tTSS" > {output.config}
-        echo -e "{input.bam}\t{input.intergenic}\tIntergenic_Summit" >> {output.config}
-
-        ## run ngs
-        export NGSPLOT=/lab/work/ccrober/sw/ngsplot
-        ngs.plot.r -G hg38 -R bed -C {output.config} -O {params.outdir} -L 1000
-        """
-
-
-### PLOTS WITH STRANDED BIGWIGS
-rule bam_to_bigwig_stranded:
-    input:
-        bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
-        #bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        blacklist = config["blacklist"],
-    output:
-        bw =  _results("tracks_by_sample/gex.{sample}.TPM.{strand}.bw"),
-    params:
-        strand = "{strand}"
-    conda:
-        "deeptools"
-    shell:
-        """
-        bamCoverage -b {input.bam} \
-            -o {output.bw} \
-            --normalizeUsing BPM \
-            --filterRNAstrand {params.strand} \
-            --numberOfProcessors 8 \
-            --blackListFileName {input.blacklist}
-        """
-
-
-rule deeptools_matrix:
-    input:
-        bws = expand(_results("tracks_by_sample/gex.{{sample}}.TPM.{strand}.bw"), strand=['forward','reverse']),
-        tss = _results("features/tss_nonoverlapping_genes.bed"),
-        intergenic = _results("features/atac_summits_intergenic.bed"),
-    output:
-        matrix = _results("deeptools/{sample}/matrix.mat.gz"),
-    conda:
-        "deeptools",
-    shell:
-        """
-        computeMatrix reference-point -S {input.bws} \
-            -R {input.tss} {input.intergenic}\
-            --referencePoint center \
-            --upstream 1000 \
-            --downstream 1000 \
-            -o {output.matrix} \
-            --binSize 50 \
-            --numberOfProcessors 20
-        """
-
-
-rule deeptools_plot:
-    input:
-        matrix = _results("deeptools/{sample}/matrix.mat.gz"),
-    output:
-        png = _results("deeptools/{sample}/profile_plot_tss_vs_intergenic.png"),
-    conda:
-        "deeptools",
-    shell:
-        """
-        plotProfile -m {input.matrix} \
-            -out {output.png} \
-            --numPlotsPerRow 1 \
-            --perGroup \
-            --plotTitle "Aggregate signal around TSS or intergenic ATAC-seq summits"
         """

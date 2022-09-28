@@ -3,7 +3,3 @@ name: "fgwas"
 gwas_stats:
   - T1D: "/lab/data/gwas/2021-01_chiou_t1d/fgwas/GCST90014023_hg19_all_snps.fgwas.txt.gz"
   - T2D: "/lab/work/albanus/2020_nih_islets_sn_t1d/data/summary_stats_for_fgwas/T2D_DIAMANTE.txt.gz"
-
-
-annotations:
-    - "results/multiome/features/atac_summits_1kb_all.bed"

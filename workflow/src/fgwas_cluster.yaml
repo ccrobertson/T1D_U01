@@ -8,8 +8,8 @@ __default__:
 
 
 fgwas_prep:
-  mem: "50G"
-  time: "10:00:00"
+  mem: "100G"
+  time: "3-00:00:00"
 
 
 fgwas_run:

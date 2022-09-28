@@ -1,0 +1,19 @@
+fgwas_annotations:
+  acinar_tCRE: results/scafe/scafe_by_cluster/acinar/annotate/acinar/bed/acinar.CRE.annot.bed
+  acinar_ATAC: results/macs2/peakcalls/noNM3/acinar_summits_ext500_noblacklist.bed
+  alpha_tCRE: results/scafe/scafe_by_cluster/alpha/annotate/alpha/bed/alpha.CRE.annot.bed
+  alpha_ATAC: results/macs2/peakcalls/noNM3/alpha_summits_ext500_noblacklist.bed
+  beta_tCRE: results/scafe/scafe_by_cluster/beta/annotate/beta/bed/beta.CRE.annot.bed
+  beta_ATAC: results/macs2/peakcalls/noNM3/beta_summits_ext500_noblacklist.bed
+  delta_tCRE: results/scafe/scafe_by_cluster/delta/annotate/delta/bed/delta.CRE.annot.bed
+  delta_ATAC: results/macs2/peakcalls/noNM3/delta_summits_ext500_noblacklist.bed
+  ductal_tCRE: results/scafe/scafe_by_cluster/ductal/annotate/ductal/bed/ductal.CRE.annot.bed
+  ductal_ATAC: results/macs2/peakcalls/noNM3/ductal_summits_ext500_noblacklist.bed
+  endothelial_tCRE: results/scafe/scafe_by_cluster/endothelial/annotate/endothelial/bed/endothelial.CRE.annot.bed
+  endothelial_ATAC: results/macs2/peakcalls/noNM3/endothelial_summits_ext500_noblacklist.bed
+  gamma_tCRE: results/scafe/scafe_by_cluster/gamma/annotate/gamma/bed/gamma.CRE.annot.bed
+  gamma_ATAC: results/macs2/peakcalls/noNM3/gamma_summits_ext500_noblacklist.bed
+  immune_tCRE: results/scafe/scafe_by_cluster/immune/annotate/immune/bed/immune.CRE.annot.bed
+  immune_ATAC: results/macs2/peakcalls/noNM3/immune_summits_ext500_noblacklist.bed
+  stellate_tCRE: results/scafe/scafe_by_cluster/stellate/annotate/stellate/bed/stellate.CRE.annot.bed
+  stellate_ATAC: results/macs2/peakcalls/noNM3/stellate_summits_ext500_noblacklist.bed

@@ -15,30 +15,42 @@ _results = partial(os.path.join, "results", name)
 _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
+configfile: "workflow/src/fgwas_annotations.yaml"
+annotations = config["fgwas_annotations"].keys()
 
-def get_annotations_list(dir):
-    files = glob.glob(os.path.join(dir, "*.bed"))
-    annots = [re.sub(".bed","", re.sub("/","", re.sub(dir, "", x))) for x in files]
-    return(annots)
+def get_annot_file(annot):
+    return config["fgwas_annotations"][annot]
 
 
-
-IONICE = "ionice -c2 -n7"
 
 rule all:
     input:
-        ### Liftover annotations
-        expand(_results("annotations/whole_islet-hg19/{annot}.bed"), annot = get_annotations_list(_results("annotations/whole_islet-hg38"))),
-        ### Run fgwas
-        _results("fgwas_run/T1D-whole_islet-hg19/fgwas_input.txt.gz"),
-        expand(_results("fgwas_run/T1D-whole_islet-hg19/{annot}/fgwas.llk"), annot = ['cres_overlapping_intergenic_atac_features','atac_summits_all', 'atac_summits_all+cres_overlapping_intergenic_atac_features']),
+        #~~~ symlinks
+        expand(_results("annotations/hg38/{annot}.bed"), annot=annotations),
+        #~~~ liftover
+        expand(_results("annotations/hg19/{annot}.bed"), annot=annotations),
+        #~~~ fgwas_prep
+        expand(_results("fgwas_run/{gwas}-{build}/fgwas_input.txt.gz"), gwas="T1D", build="hg19"),
+        #~~~ fgwas
+        expand(_results("fgwas_run/{gwas}-{build}/{annot}/fgwas.params"), gwas="T1D", build="hg19", annot=annotations),
 
+
+
+rule symlinks:
+    input:
+        bed = lambda wildcards: get_annot_file(wildcards.annot),
+    output:
+        bed = _results("annotations/hg38/{annot}.bed"),
+    shell:
+        """
+        ln -s --force --relative {input.bed} {output.bed}
+        """
 
 rule liftover_annotations:
     input:
-        bed = _results("annotations/{annot_set}-hg38/{annot}.bed"),
+        bed = _results("annotations/hg38/{annot}.bed"),
     output:
-        bed = _results("annotations/{annot_set}-hg19/{annot}.bed"),
+        bed = _results("annotations/hg19/{annot}.bed"),
     params:
         chain = _resources("hg38ToHg19.over.chain.gz"),
     shell:
@@ -46,55 +58,32 @@ rule liftover_annotations:
         liftOver -bedPlus=6 {input.bed} resources/hg38ToHg19.over.chain.gz {output.bed} {output.bed}.unmapped
         """
 
-# rule liftover_annotations:
-#     input:
-#         bed_list = _results("annotations/{annot_set}_hg38/annotations.txt"),
-#     output:
-#         bed_list = _results("annotations/{annot_set}_hg19/annotations.txt")
-#     params:
-#         indir = _results("annotations/{annot_set}_hg38"),
-#         outdir = _results("annotations/{annot_set}_hg19"),
-#         chain = _resources("hg38ToHg19.over.chain.gz"),
-#     shell:
-#         """
-#         while read -r bed; do
-#             echo "Lifting over {params.indir}/$bed";
-#             liftOver -bedPlus=6 {params.indir}/$bed {params.chain} {params.outdir}/$bed {params.outdir}/$bed.unmapped
-#         done < {input.bed_list}
-#
-#         cd {params.outdir}
-#         echo *bed > annotations.txt
-#        """
-
-
 
 rule fgwas_prep:
     input:
         gwas_file = _results("gwas_stats/{gwas}-{build}/formatted.txt.gz"),
-        annot_list = _results("annotations/{annot_set}-{build}/annotations.txt"),
+        annots = expand(_results("annotations/{{build}}/{annot}.bed"), annot=annotations),
     output:
-        fgwas_file = _results("fgwas_run/{gwas}-{annot_set}-{build}/fgwas_input.txt.gz"),
-    params:
-        annot_dir = _results("annotations/{annot_set}-{build}"),
+        fgwas_file = _results("fgwas_run/{gwas}-{build}/fgwas_input.txt.gz"),
     conda:
         "genetics"
     shell:
         """
         Rscript workflow/scripts/fgwas_prep.R \
             --gwas_file {input.gwas_file} \
-            --annot_dir {params.annot_dir} \
-            --outfile {output.fgwas_file}
+            --outfile {output.fgwas_file} \
+            {input.annots}
         """
 
 
 rule fgwas_run:
     input:
-        fgwas_input = _results("fgwas_run/{gwas}-{annot_set}-{build}/fgwas_input.txt.gz"),
+        fgwas_input = _results("fgwas_run/{gwas}-{build}/fgwas_input.txt.gz"),
     output:
-        _results("fgwas_run/{gwas}-{annot_set}-{build}/{annot}/fgwas.llk"),
-        _results("fgwas_run/{gwas}-{annot_set}-{build}/{annot}/fgwas.params"),
+        _results("fgwas_run/{gwas}-{build}/{annot}/fgwas.llk"),
+        _results("fgwas_run/{gwas}-{build}/{annot}/fgwas.params"),
     params:
-        prefix = _results("fgwas_run/{gwas}-{annot_set}-{build}/{annot}/fgwas"),
+        prefix = _results("fgwas_run/{gwas}-{build}/{annot}/fgwas"),
         annot = "{annot}",
     shell:
         """
@@ -231,3 +220,17 @@ rule fgwas_run:
 #         {IONICE} fgwas -i {input} -w {params.col} -o {params.handle} -print
 #         """
 #
+# def get_annotations_list(dir):
+#     files = glob.glob(os.path.join(dir, "*.bed"))
+#     annots = [re.sub(".bed","", re.sub("/","", re.sub(dir, "", x))) for x in files]
+#     return(annots)
+#
+# IONICE = "ionice -c2 -n7"
+#
+# rule all:
+#     input:
+#         ### Liftover annotations
+#         expand(_results("annotations/whole_islet-hg19/{annot}.bed"), annot = get_annotations_list(_results("annotations/whole_islet-hg38"))),
+#         ### Run fgwas
+#         _results("fgwas_run/T1D-whole_islet-hg19/fgwas_input.txt.gz"),
+#         expand(_results("fgwas_run/T1D-whole_islet-hg19/{annot}/fgwas.llk"), annot = ['cres_overlapping_intergenic_atac_features','atac_summits_all', 'atac_summits_all+cres_overlapping_intergenic_atac_features']),

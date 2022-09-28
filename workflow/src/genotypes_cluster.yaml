@@ -7,10 +7,17 @@ __default__:
   time: "4:00:00"
 
 
-remove_1kg:
+extract_donors:
   mem: "1G"
-  time: "48:00:00"
+  cpus: "10"
 
 
-filter_variants:
-  time: "48:00:00"
+filter_variants_round1:
+  mem: "1G"
+  cpus: "10"
+
+
+filter_variants_round2:
+  mem: "1G"
+  cpus: "10"
+

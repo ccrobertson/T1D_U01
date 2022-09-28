@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+
 from os.path import join
 import os
 from functools import partial
@@ -8,94 +9,117 @@ import json
 
 
 name = config["name"]
+autosomes = list(range(1, 23))
 
-_results = partial(os.path.join, "results/imputation", name)
-_source = partial(os.path.join, config["source"])
+_results = partial(os.path.join, "results", name)
 _logs = partial(_results, "logs")
 
-chromosomes = list(range(1, 23))
+def _source(source, file):
+    f = os.path.join(config['sources'][source], file)
+    return(f)
 
+def get_donors_string():
+    return(','.join(config["donors"]))
 
-# def iterate_subjects_by_batch(samplename):
-#      return config["batches"][samplename].keys()
-#
-def get_donorstring(donors):
-    return(','.join(donors))
+def get_sources():
+    return(config["sources"].keys())
+
+def n_sources():
+    return(len(config["sources"].keys()))
+
 
 rule all:
-    input:
-        #_results("imputation_input/chrALL.vcf.gz"),
-        #_results("imputation_results/chrALL.donors_only.dose.vcf.gz"),
-        _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf.gz"),
-        #_results("imputation_results/chrALL.maf_gt_0.01.dose.vcf"),
-        #_results("imputation_results/chrALL.donors_only.maf_gt_0.01.bed"),
+     input:
+        #expand(_results("imputation_results/{source}/chr{chr}.donors_only.dose.vcf.gz"), chr=20, source=['nih_20220216','6719-NM']),
+        #expand(_results("imputation_results_combined/chr20.donors_only.{filter}.dose.vcf.gz"), filter="maf_gt_1pct__rsq_gt_pt95"),
+        expand(_results("imputation_results_combined/all_chromosomes.donors_only.{filter}.bed"), filter=['maf_gt_1pct__rsq_gt_pt95','maf_gt_1pct__rsq_gt_pt30']),
 
 
-rule combine_chromosomes:
+### NOTE: rsq filter did not work in TOPMED imputation
+rule filter_variants_round1:
     input:
-        vcf_by_chr = expand(_results("imputation_results/chr{chr}.dose.vcf.gz"), chr=chromosomes),
+        vcf = lambda wildcards: _source(wildcards.source,"chr{chr}.dose.vcf.gz"),
     output:
-        vcf_combined = _results("imputation_results/chrALL.dose.vcf.gz"),
-        tbi = _results("imputation_results/chrALL.dose.vcf.gz.tbi"),
-    shell:
-        """
-        bcftools concat -O z -o {output.vcf_combined} {input.vcf_by_chr}
-        tabix -p vcf {output.vcf_combined}
-        """
-
-rule filter_variants_maf:
-    input:
-        vcf = _results("imputation_results/chrALL.dose.vcf.gz"),
-    output:
-        vcf_filtered = _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf.gz"),
+        vcf = _results("imputation_results/{source}/chr{chr}.maf_gt_1pct__rsq_gt_pt30.dose.vcf.gz"),
     conda:
         "genetics"
     shell:
         """
-        bcftools view -i 'MAF>.01' -O z -o {output.vcf_filtered} {input.vcf}
-        tabix -p vcf {output.vcf_filtered}
+        bcftools view -i 'MAF>.01 & R2>0.3' --threads 10 -Oz -o {output.vcf} {input.vcf}
+        tabix -p vcf {output.vcf}
         """
 
-rule remove_1kg:
+rule extract_donors:
     input:
-        vcf_combined = _results("imputation_results/chrALL.maf_gt_0.01.dose.vcf.gz"),
-        donors = _results("donors.txt"),
+        vcf = _results("imputation_results/{source}/chr{chr}.maf_gt_1pct__rsq_gt_pt30.dose.vcf.gz"),
     output:
-        vcf_donors = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf.gz"),
+        vcf = _results("imputation_results/{source}/chr{chr}.donors_only.maf_gt_1pct__rsq_gt_pt30.dose.vcf.gz"),
+    params:
+        donors = get_donors_string(),
+    conda:
+        "genetics"
     shell:
         """
-        bcftools view --samples-file {input.donors} -O z -o {output.vcf_donors} {input.vcf_combined}
-	    tabix -p vcf {output.vcf_donors}
+        bcftools view --samples {params.donors} --force-samples --threads 10 -Oz -o {output.vcf} {input.vcf}
+	    tabix -p vcf {output.vcf}
+        """
+
+
+### stringent rsq for identity matching
+rule filter_variants_round2:
+    input:
+        vcf = _results("imputation_results/{source}/chr{chr}.donors_only.maf_gt_1pct__rsq_gt_pt30.dose.vcf.gz"),
+    output:
+        vcf = _results("imputation_results/{source}/chr{chr}.donors_only.maf_gt_1pct__rsq_gt_pt95.dose.vcf.gz"),
+    conda:
+        "genetics"
+    shell:
+        """
+        bcftools view -i 'R2>0.95' --threads 10 -Oz -o {output.vcf} {input.vcf}
+        tabix -p vcf {output.vcf}
+        """
+
+rule merge_vcfs:
+    input:
+        vcfs = expand(_results("imputation_results/{source}/chr{{chr}}.donors_only.{{filter}}.dose.vcf.gz"), source=get_sources()),
+    output:
+        tmpfiles = expand(_results("imputation_results_combined/bcftools_isec.{{filter}}.chr{{chr}}/000{k}.vcf.gz"), k=list(range(0,n_sources()))),
+        vcf = _results("imputation_results_combined/chr{chr}.donors_only.{filter}.dose.vcf.gz"),
+    params:
+        tmpdir = _results("imputation_results_combined/bcftools_isec.{filter}.chr{chr}"),
+        nsources = n_sources(),
+    conda:
+        "genetics"
+    shell:
+        """
+        bcftools isec -p {params.tmpdir} -n {params.nsources} -c none -Oz {input.vcfs}
+        bcftools merge -Oz -o {output.vcf} {output.tmpfiles}
+        """
+
+rule combine_chromosomes:
+    input:
+        vcfs = expand(_results("imputation_results_combined/chr{chr}.donors_only.{{filter}}.dose.vcf.gz"), chr=autosomes),
+    output:
+        vcf = _results("imputation_results_combined/all_chromosomes.donors_only.{filter}.dose.vcf.gz"),
+        tbi = _results("imputation_results_combined/all_chromosomes.donors_only.{filter}.dose.vcf.gz.tbi"),
+    conda:
+        "genetics"
+    shell:
+        """
+        bcftools concat -O z -o {output.vcf} {input.vcfs}
+        tabix -p vcf {output.vcf}
         """
 
 rule convert_to_plink:
     input:
-        vcf = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.dose.vcf.gz"),
+        vcf = _results("imputation_results_combined/all_chromosomes.donors_only.{filter}.dose.vcf.gz"),
     output:
-        bed = _results("imputation_results/chrALL.donors_only.maf_gt_0.01.bed"),
+        bed = _results("imputation_results_combined/all_chromosomes.donors_only.{filter}.bed"),
     params:
-        prefix = _results("imputation_results/chrALL.donors_only.maf_gt_0.01"),
+        prefix = _results("imputation_results_combined/all_chromosomes.donors_only.{filter}"),
     conda:
         "genetics"
     shell:
         """
         plink --vcf {input.vcf} --double-id --make-bed --out {params.prefix}
         """
-
-
-# imputation server url
-# url = 'https://imputationserver.sph.umich.edu/api/v2'
-#
-# # add token to header (see Authentication)
-# headers = {'X-Auth-Token' : token }
-#
-# # submit new job
-# vcf = '/path/to/genome.vcf.gz';
-# files = {'input-files' : open(vcf, 'rb')}
-# r = requests.post(url + "/jobs/submit/minimac4", files=files, headers=headers)
-# if r.status_code != 200:
-#     raise Exception('POST /jobs/submit/minimac4 {}'.format(r.status_code))
-#
-# # print message
-# print r.json()['message']
-# print r.json()['id']

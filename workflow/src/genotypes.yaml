@@ -1,8 +1,13 @@
-name: "2022_02_16_T1D_genotypes"
-source: "/lab/data/nih/2022_02_16_T1D_genotypes"
+name: "genotypes"
+
+sources:
+  nih_20220216: "/lab/work/ccrober/imputation_nih_2022_02_16_T1D_genotypes/imputation_results"
+  6719-NM: "/lab/work/ccrober/imputation_6719-NM/results/imputation-topmed-r2filter_0.3"
+
 donors:
-  - HPAP093
-  - HPAP105
-  - HPAP107
-  - ICRH139
-  - ICRH142 
+- HPAP093
+- HPAP105
+- HPAP107
+- ICRH139
+- ICRH142
+- ICRH143

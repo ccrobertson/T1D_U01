@@ -1,0 +1,20 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.liger.{rule}.{wildcards}.out"
+  time: "4:00:00"
+
+
+liger_iNMF:
+   mem: "25G"
+
+liger_clustering:
+  mem: "50G"
+
+liger_plots:
+  mem: "50G"
+
+export_clusters:
+  mem: "50G"

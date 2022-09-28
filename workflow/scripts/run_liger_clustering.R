@@ -54,16 +54,16 @@ liger_obj <- runUMAP(liger_obj, distance = "cosine", n_neighbors = 30, min_dist 
 saveRDS(liger_obj, file=file.path(opts$outdir, "liger_obj_clusters.rds"))
 
 ## Visualization
-png(file.path(opts$outdir, "umap_clusters_and_batch.png"), width=900, height=500)
+png(file.path(opts$outdir, "umap_clusters_and_batch.png"), width=1100, height=500)
 all.plots <- plotByDatasetAndCluster(liger_obj, axis.labels = c('UMAP 1', 'UMAP 2'), return.plots = TRUE)
 all.plots[[1]] + all.plots[[2]]
 dev.off()
 
-gene_loadings <- plotGeneLoadings(liger_obj, do.spec.plot = FALSE, return.plots = TRUE)
-pdf(file.path(opts$outdir, "umap_gene_loadings.pdf"), width=9, height=7)
-gene_loadings[[1]]
-gene_loadings[[2]]
-gene_loadings[[3]]
-gene_loadings[[4]]
-gene_loadings[[5]]
-dev.off()
+# gene_loadings <- plotGeneLoadings(liger_obj, do.spec.plot = FALSE, return.plots = TRUE)
+# pdf(file.path(opts$outdir, "umap_gene_loadings.pdf"), width=9, height=7)
+# gene_loadings[[1]]
+# gene_loadings[[2]]
+# gene_loadings[[3]]
+# gene_loadings[[4]]
+# gene_loadings[[5]]
+# dev.off()

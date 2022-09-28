@@ -1,0 +1,51 @@
+name: "liger"
+
+counts:
+  Sample_5124-NM_NM-1: "results/multiome/decontx_round2/Sample_5124-NM-1-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-2: "results/multiome/decontx_round2/Sample_5124-NM-2-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-3: "results/multiome/decontx_round2/Sample_5124-NM-3-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-4: "results/multiome/decontx_round2/Sample_5124-NM-4-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-5: "results/multiome/decontx_round2/Sample_5124-NM-5-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-6: "results/multiome/decontx_round2/Sample_5124-NM-6-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-7: "results/multiome/decontx_round2/Sample_5124-NM-7-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5124-NM_NM-8: "results/multiome/decontx_round2/Sample_5124-NM-8-hg38/counts_low_contamination_decontaminated.rds"
+  Sample_5125-NM-1_NM-1: "results/fiveprime/decontx_round2/Sample_5125-NM-1_NM-1/counts_low_contamination_decontaminated.rds"
+
+
+liger_sets:
+  multimodal_all:
+    - Sample_5124-NM_NM-1
+    - Sample_5124-NM_NM-2
+    - Sample_5124-NM_NM-3
+    - Sample_5124-NM_NM-4
+    - Sample_5124-NM_NM-5
+    - Sample_5124-NM_NM-6
+    - Sample_5124-NM_NM-7
+    - Sample_5124-NM_NM-8
+    - Sample_5125-NM-1_NM-1
+  multimodal_noNM3:
+    - Sample_5124-NM_NM-1
+    - Sample_5124-NM_NM-2
+    - Sample_5124-NM_NM-4
+    - Sample_5124-NM_NM-5
+    - Sample_5124-NM_NM-6
+    - Sample_5124-NM_NM-7
+    - Sample_5124-NM_NM-8
+    - Sample_5125-NM-1_NM-1
+  3GEX_all:
+    - Sample_5124-NM_NM-1
+    - Sample_5124-NM_NM-2
+    - Sample_5124-NM_NM-3
+    - Sample_5124-NM_NM-4
+    - Sample_5124-NM_NM-5
+    - Sample_5124-NM_NM-6
+    - Sample_5124-NM_NM-7
+    - Sample_5124-NM_NM-8
+  3GEX_noNM3:
+    - Sample_5124-NM_NM-1
+    - Sample_5124-NM_NM-2
+    - Sample_5124-NM_NM-4
+    - Sample_5124-NM_NM-5
+    - Sample_5124-NM_NM-6
+    - Sample_5124-NM_NM-7
+    - Sample_5124-NM_NM-8

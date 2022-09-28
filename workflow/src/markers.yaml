@@ -1,0 +1,11 @@
+cell_types:
+  ductal: "KRT19"
+  acinar: "PRSS1"
+  alpha: "GCG"
+  beta: "INS"
+  delta: "SST"
+  gamma: "PPY"
+  stellate: "RGS5"
+  endothelial: "VWF"
+  immune: "PTPRC"
+

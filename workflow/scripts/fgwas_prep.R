@@ -9,29 +9,23 @@ option_list <- list(
     c("--gwas_file"), type = "character", help = " "
   ),
   make_option(
-    c("--annot_dir"), type = "character", help = " "
-  ),
-  make_option(
     c("--outfile"), type = "character", help = " "
   )
 )
 
 option_parser <- OptionParser(usage = "usage: Rscript %prog [options]",
                               option_list = option_list, add_help_option = TRUE)
-opts <- parse_args(option_parser)
+opts <- parse_args(option_parser, positional_arguments=TRUE)
 
 
-# ### Testing
-# opts = list()
-# opts$gwas_file = "results/fgwas/gwas_test_file.txt.gz"
-# opts$annot_dir =  "results/fgwas/annotations/whole_islet-hg19"
-# opts$outfile = "results/fgwas/fgwas_input.txt.gz"
+### Get annotations
+annot_files = opts$args
+annot_labels = gsub(".bed", "", sapply(annot_files, function(x) {vals=unlist(strsplit(x, split="/")); return(vals[length(vals)])}))
+annot_sets = lapply(annot_files, FUN=rtracklayer::import)
+names(annot_sets) <- annot_labels
 
+opts = opts$options
 
-# ### Get annotations
-annot_files = scan(file.path(opts$annot_dir, "annotations.txt"), what="character")
-annot_sets = lapply(file.path(opts$annot_dir,annot_files), FUN=rtracklayer::import)
-names(annot_sets) <- sub(pattern="([\\w]+).bed", "\\1", x=annot_files, perl=TRUE)
 
 
 ### Get gwas stats

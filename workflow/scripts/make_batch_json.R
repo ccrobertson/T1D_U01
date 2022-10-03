@@ -15,7 +15,7 @@ opts <- parse_args(option_parser)
 
 ## Testing
 #opts = list()
-#opts$batchfile = "Sample_islet_list_for_multiomics_Batches_long_format_with_libname.tsv"
+#opts$batchfile = "data/nandini_run_design.tsv"
 
 batch_info = read.table(file=opts$batchfile, header=TRUE)
 
@@ -26,7 +26,7 @@ convertToList = function(x) {
 }
 
 convertBatchDFtoJSON = function(x) {
-  x_by_batch = split(x, f=x$Libname)
+  x_by_batch = split(x, f=x$Batch_name)
   x_by_batch_by_subject = lapply(x_by_batch, FUN=convertToList)
   x_json = toJSON(list(batches=x_by_batch_by_subject), indent=4, method="C")
   return(x_json)

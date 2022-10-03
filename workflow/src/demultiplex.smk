@@ -14,72 +14,99 @@ _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-configfile: "data/nandini_run_design.json"
+### Batch design and library key
+configfile: "data/batch_design.json"
+configfile: "data/library_key.json"
+
+### Bam file and barcodes to use
 configfile: "workflow/src/demultiplex_samples.yaml"
+
+### Samples and
 samples = config["samples"].keys()
 batches = config["batches"].keys()
-
-### restrict wildcards to existing runs, batches, and samples
 wildcard_constraints:
    sample="|".join(samples),
    batch="|".join(batches),
-   bamtype="unfiltered|auto|p01",
+   bamtype="unfiltered|auto|p01|p10",
+
+
 
 IONICE = 'ionice -c2 -n7'
 
+def sample_to_batch(sample):
+    return config["libraries"][sample]["Batch"]
 
-def genotyped_subjects_by_batch_as_string(sample, genotyped_donors):
-    samplename = config["samples"][sample]['batch']
-    donors_in_batch = config["batches"][samplename].keys()
+def batch_to_donors(batch):
+    return config["batches"][batch].keys()
+
+def sample_to_donors(sample):
+    batch = sample_to_batch(sample)
+    donors = batch_to_donors(batch)
+    return donors
+
+def count_donors(sample):
+    return len(sample_to_donors(sample))
+
+def genotyped_donors_by_sample_as_list(sample, genotyped_donors):
+    donors_in_sample = sample_to_donors(sample)
     donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-    overlap = ' '.join(sorted(list(set(donors_in_batch) & set(donors_in_vcf))))
+    overlap = sorted(list(set(donors_in_batch) & set(donors_in_vcf)))
     return overlap
 
-def genotyped_subjects_by_batch_as_string2(sample, genotyped_donors):
-    samplename = config["samples"][sample]['batch']
-    donors_in_batch = config["batches"][samplename].keys()
-    donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-    overlap = ','.join(sorted(list(set(donors_in_batch) & set(donors_in_vcf))))
+def genotyped_donors_by_sample_as_string(sample, genotyped_donors):
+    overlap = ' '.join(genotyped_donors_by_sample_as_list(sample, genotyped_donors))
     return overlap
 
-def count_genotyped_subjects_by_batch(sample, genotyped_donors):
-    samplename = config["samples"][sample]['batch']
-    donors_in_batch = config["batches"][samplename].keys()
-    donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-    overlap = list(set(donors_in_batch) & set(donors_in_vcf))
-    return len(overlap)
+def genotyped_donors_by_sample_as_string2(sample, genotyped_donors):
+    overlap = ','.join(genotyped_donors_by_sample_as_list(sample, genotyped_donors))
+    return overlap
 
-def count_subjects_by_batch(samplename):
-    return len(config["batches"][samplename].keys())
+def count_genotyped_donors_by_sample(sample, genotyped_donors):
+    return len(genotyped_donors_by_sample_as_list(sample, genotyped_donors))
 
-def calculate_max_missing_by_batch(sample, genotyped_donors):
-    samplename = config["samples"][sample]['batch']
-    n_subjects = len(config["batches"][samplename].keys())
-    n_donors = pd.read_table(genotyped_donors, header=None).shape[0]
-    max_missing_rate = math.ceil((n_subjects-1)/(n_donors+n_subjects)*100, )/100
+def calculate_max_missing_by_sample(sample, genotyped_donors):
+    n_donors_pool = count_genotyped_donors_by_sample(sample, genotyped_donors)
+    n_donors_vcf = pd.read_table(genotyped_donors, header=None).shape[0]
+    max_missing_rate = math.ceil((n_donors_pool-1)/(n_donors_vcf+n_donors_pool)*100, )/100
     return max_missing_rate
 
-def iterate_donors_by_sample(sample):
-    batch = config["samples"][sample]['batch']
-    return config["batches"][batch].keys()
+
+def get_bam(sample, bamytpe):
+    bam = config["samples"][sample]["bam_"+bamtype]
+    return bam
+
+def get_barcodes(sample):
+    barcodes = config["samples"][sample]["barcodes"]
+    return bam
 
 
 rule all:
     input:
         #~~~~~~~~ demuxlet
-        expand(_results("demuxlet-unfiltered/5125-{batch}/demuxlet.best"), batch="NM-1"),
+        expand(_results("demuxlet-unfiltered/{sample}/demuxlet.best"), sample=samples),
         #expand(_results("demuxlet-unfiltered/5124-{batch}/demuxlet.best"), batch=batches),
         #expand(_results("demuxlet-auto/5124-{batch}/demuxlet.best"), batch=batches),
         #expand(_results("demuxlet-p01/5124-{batch}/demuxlet.best"), batch=batches),
         #~~~~~~~~ souporcell
-        #expand(_results("check_by_sample-unfiltered/5125-{batch}/corrplot_r_by_donor.png"), batch="NM-1"),
-        #expand(_results("check_by_sample-unfiltered/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
-        #expand(_results("check_by_sample-auto/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
-        #expand(_results("check_by_sample-p01/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
+        #expand(_results("souporcell_check_by_sample-unfiltered/5125-{batch}/corrplot_r_by_donor.png"), batch="NM-1"),
+        #expand(_results("souporcell_check_by_sample-unfiltered/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
+        #expand(_results("souporcell_check_by_sample-auto/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
+        #expand(_results("souporcell_check_by_sample-p01/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
         #summary
-        #_results("check-unfiltered/corrplot_r_by_donor.png"),
+        #_results("souporcell_check-unfiltered/corrplot_r_by_donor.png"),
 
 
+rule chunk_barcodes:
+    input:
+        barcodes = lambda wildcards: get_barcodes(wildcard.sample),
+    output:
+        barcodes_chunked = _results("demuxlet_barcodes_chunked/{sample}/bc_{chunk}"),
+    params:
+        prefix = _results("demuxlet_barcodes_chunked/{sample}/bc_"),
+    shell:
+        """
+        split --N 1000 {input.barcodes} {params.prefix}
+        """
 
 #DEMUXLET2: https://github.com/statgen/popscle
 #NOTE: example for using demuxlet "v2":
@@ -93,14 +120,14 @@ rule all:
 # --out ${library}-${modality}
 rule demuxlet:
     input:
-        bam = lambda wildcards: config['libraries'][wildcards.sample]["bam_"+wildcards.bamtype],
-        barcodes =
+        bam = lambda wildcards: get_bam(wildcard.sample, wildcard.bamtype),
+        barcodes = _results("demuxlet_barcodes_chunked/{sample}/bc_{chunk}"),
         vcf = config["donor_genotypes"],
     output:
         _results("demuxlet-{bamtype}/{sample}/demuxlet.best"),
     params:
         prefix = _results("demuxlet-{bamtype}/{sample}/demuxlet"),
-        donors = lambda wildcards: genotyped_subjects_by_batch_as_string2(wildcards.sample, config["genotyped_donors"]),
+        donors = lambda wildcards: genotyped_donors_by_sample_as_string2(wildcards.sample, config["genotyped_donors"]),
     container:
         "workflow/envs/demuxlet_20220204.sif",
     shell:
@@ -180,18 +207,20 @@ rule souporcell_fix_vcf:
         tabix -p vcf {output.cluster_genotypes_reformatted}
         """
 
-rule demultiplex_by_sample:
+
+
+rule souporcell_check_by_sample:
     input:
         souporcell_vcf = _results("souporcell-{bamtype}/{sample}/cluster_genotypes_reformatted.vcf.gz"),
         imputed_vcf = config["donor_genotypes"],
     output:
-        kin0 =  _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.raw"),
+        kin0 =  _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king.id"),
+        genoraw = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.raw"),
     params:
-        prefix = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered"),
+        prefix = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors"),
+        prefix_filtered = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered"),
         max_missing = lambda wildcards: calculate_max_missing_by_batch(wildcards.sample, config["genotyped_donors"])
     conda:
         "genetics"
@@ -215,16 +244,16 @@ rule demultiplex_by_sample:
         """
 
 
-rule demultiplex_by_sample_plots:
+rule souporcell_check_by_sample_plots:
     input:
-        kin0 = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.raw"),
+        kin0 = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.king.id"),
+        genoraw = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered.raw"),
     output:
-        _results("check_by_sample-{bamtype}/{sample}/corrplot_r_by_donor.png"),
+        _results("souporcell_check_by_sample-{bamtype}/{sample}/corrplot_r_by_donor.png"),
     params:
-        outdir = _results("check_by_sample-{bamtype}/{sample}"),
+        outdir = _results("souporcell_check_by_sample-{bamtype}/{sample}"),
         donors = "HPAP105,HPAP093,ICRH139,ICRH142,ICRH143,HPAP107",
     conda:
         "Renv"
@@ -240,18 +269,18 @@ rule demultiplex_by_sample_plots:
         """
 
 
-rule demultiplex:
+rule souporcell_check:
     input:
         souporcell_vcfs = expand(_results("souporcell-{{bamtype}}/{sample}/cluster_genotypes_reformatted.vcf.gz"), sample=samples),
         imputed_vcf = config["donor_genotypes"],
     output:
-        kin0 =  _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat =  _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds =  _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.raw"),
+        kin0 =  _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat =  _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds =  _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.king.id"),
+        genoraw = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.raw"),
     params:
-        prefix = _results("check-{bamtype}/souporcell_clusters_and_donors"),
-        prefix_filtered = _results("check-{bamtype}/souporcell_clusters_and_donors_filtered"),
+        prefix = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors"),
+        prefix_filtered = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered"),
         max_missing = 0.5,
     conda:
         "genetics"
@@ -274,16 +303,16 @@ rule demultiplex:
         plink --bfile {params.prefix_filtered} --recodeA --out {params.prefix_filtered}
         """
 
-rule demultiplex_plots:
+rule souporcell_check_plots:
     input:
-        kin0 = _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.kin0"),
-        kinMat = _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.king"),
-        kinIds = _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.king.id"),
-        genoraw = _results("check-{bamtype}/souporcell_clusters_and_donors_filtered.raw"),
+        kin0 = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.kin0"),
+        kinMat = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.king"),
+        kinIds = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.king.id"),
+        genoraw = _results("souporcell_check-{bamtype}/souporcell_clusters_and_donors_filtered.raw"),
     output:
-        _results("check-{bamtype}/corrplot_r_by_donor.png"),
+        _results("souporcell_check-{bamtype}/corrplot_r_by_donor.png"),
     params:
-        outdir = _results("check-{bamtype}"),
+        outdir = _results("souporcell_check-{bamtype}"),
         donors = "HPAP105,HPAP093,ICRH139,ICRH142,ICRH143,HPAP107",
     shell:
         """

@@ -16,8 +16,8 @@ demuxlet:
   mem: "60G"
 
 
-demultiplex_by_sample:
+souporcell_check_by_sample:
   mem: "20G"
 
-demultiplex:
+souporcell_check:
   mem: "20G"

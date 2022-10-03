@@ -15,69 +15,24 @@ _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-configfile: _data("nandini_run_design.json")
+### 5GEX Library Configs
+configfile: _data("5125-NM-1.json")
+configfile: _data("5125-NM_resequenced_2-8.json")
 
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   Functions
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-def iterate_batches_in_run(run):
-    batches = list(config["runs"][run]["batches_in_run"].keys())
-    return batches
-
-def get_uniq_sample_ids():
-    s = []
-    runs = config["runs"].keys()
-    for r in runs:
-        batches = iterate_batches_in_run(r)
-        samples = ["Sample_"+r+"_"+b for b in batches]
-        s = s + samples
-    return s
-
-def fastq_dir_by_run(run):
-    dir = config['runs'][run]['fastq_dir']
-    return dir
-
-def fastqs_by_sample(run, batch):
-    f = open(config['runs'][run]['bcl2fq_report'])
-    for line in f:
-        line = line.replace('"','')
-        vals = line.split(',')
-        Sample_ID = config["runs"][run]["batches_in_run"][batch]
-        if vals[1] == Sample_ID:
-            barcode = vals[3]
-            dir = config['runs'][run]['fastq_dir']
-            R1 = glob.glob(dir + "/*" + barcode + "*" + "R1_001.fastq.gz")[0]
-            R2 = glob.glob(dir + "/*" + barcode + "*" + "R2_001.fastq.gz")[0]
-    return [R1, R2]
-
-def fastq_prefix_by_sample(run, batch):
-    fullpath = fastqs_by_sample(run, batch)[0]
-    file = fullpath.split('/')[len(fullpath.split('/'))-1]
-    prefix = re.sub("_S[0-9]+_R1_001.fastq.gz","", file)
-    return prefix
-
-
-#print(fastqs_by_sample("5125-NM-1","NM-1"))
-#print(" ".join(fastqs_by_sample("5125-NM-1","NM-1")))
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   Variables
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-### 5GEX runs to process from fiveprime.yaml
-runs = config["runs"].keys()
-samples = get_uniq_sample_ids()
-#print(samples)
-
-### batch information from nandini_run_design.json
-batches = config["batches"].keys()
-
-### restrict wildcards to existing runs, batches, and samples
+### Samples to process (fiveprime.yaml)
+samples = config["samples"]
 wildcard_constraints:
-   run="|".join(runs),
-   sample="|".join(samples),
-   batch="|".join(batches),
+   sample="|".join(samples)
+
+
+def fastq_dir_by_sample(sample):
+    return config['libraries'][sample]['fastq_dir']
+
+def fastqs_by_sample(sample):
+    return = config['libraries'][sample]['fastqs']
+
+def fastq_prefix_by_sample(sample):
+    return config['libraries'][sample]['fastq_prefix']
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,13 +61,13 @@ rule all:
 
 rule cellranger:
     input:
-        fastqs = lambda wildcards: fastqs_by_sample(wildcards.run, wildcards.batch),
+        fastqs = lambda wildcards: fastqs_by_sample(wildcards.sample),
     output:
-        flag = _results("cellranger/Sample_{run}_{batch}.done.flag"),
+        flag = _results("cellranger/{sample}.done.flag"),
     params:
-        id = "Sample_{run}_{batch}",
-        fastq_dir = lambda wildcards: fastq_dir_by_run(wildcards.run),
-        fastq_prefix = lambda wildcards: fastq_prefix_by_sample(wildcards.run, wildcards.batch),
+        id = "{sample}",
+        fastq_dir = lambda wildcards: fastq_dir_by_sample(wildcards.sample),
+        fastq_prefix = lambda wildcards: fastq_prefix_by_sample(wildcards.sample),
         outdir = _results("cellranger"),
     shell:
         """
@@ -170,14 +125,14 @@ rule cellranger_bam_sorted:
 
 rule starsolo:
     input:
-        fastqs = lambda wildcards: fastqs_by_sample(wildcards.run, wildcards.batch),
+        fastqs = lambda wildcards: fastqs_by_sample(wildcards.sample),
     output:
-        bam = _results("starsolo/Sample_{run}_{batch}/starsolo.Aligned.sortedByCoord.out.bam"),
-        mtx = expand(_results("starsolo/Sample_{{run}}_{{batch}}/starsolo.Solo.out/{feature_type}/raw/matrix.mtx"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
-        barcodes = expand(_results("starsolo/Sample_{{run}}_{{batch}}/starsolo.Solo.out/{feature_type}/raw/barcodes.tsv"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
-        features = expand(_results("starsolo/Sample_{{run}}_{{batch}}/starsolo.Solo.out/{feature_type}/raw/features.tsv"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
+        bam = _results("starsolo/{sample}/starsolo.Aligned.sortedByCoord.out.bam"),
+        mtx = expand(_results("starsolo/{{sample}}/starsolo.Solo.out/{feature_type}/raw/matrix.mtx"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
+        barcodes = expand(_results("starsolo/{{sample}}/starsolo.Solo.out/{feature_type}/raw/barcodes.tsv"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
+        features = expand(_results("starsolo/{{sample}}/starsolo.Solo.out/{feature_type}/raw/features.tsv"),feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
     params:
-        prefix = _results("starsolo/Sample_{run}_{batch}/starsolo."),
+        prefix = _results("starsolo/{sample}/starsolo."),
         genomeDir = _resources("hg38/hg38_cvb4"),
         sjdbGTFfile = _resources("hg38/gencode.v39.annotation.CVB4.gtf"),
         soloCBwhitelist = _resources("barcode_whitelist_5GEX.txt"),

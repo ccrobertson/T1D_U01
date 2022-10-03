@@ -6,27 +6,20 @@ from functools import partial
 import pandas as pd
 import math
 
+name = config["name"]
+
 _data = partial(os.path.join, "data")
 _results = partial(os.path.join, "results", name)
 _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-configfile: _data("nandini_run_design.json")
-batches = config["batches"].keys()
+### Samples to process (multiome.yaml)
 samples = config["samples"]
 wildcard_constraints:
-   sample="Sample[^/]*",
+   sample="|".join(samples)
 
 IONICE = 'ionice -c2 -n7'
-
-
-
-def iterate_samples(bcl2fq_report):
-    d = pd.read_csv(bcl2fq_report)
-    sample_ids = d["Sample_ID"].tolist()
-    return sample_ids
-
 
 rule all:
     input:
@@ -39,6 +32,8 @@ rule all:
         #~~~~~~~~ dropkick_plots
         #expand(_results("dropkick_{method}_{min_genes}/{sample}/dropkick_score.png"), sample="Sample_5124-NM-2-hg38", method="multiotsu", min_genes=[100]),
         #expand(_results("dropkick_{method}_{min_genes}/{sample}/dropkick_score.png"), sample=samples, method="multiotsu", min_genes=[100]),
+        #~~~~~~~~ droplet_utils
+        expand(_results("droplet_utils/{sample}/barcodes_nuclei.txt"), sample=samples),
         #~~~~~~~~ cross modality prefiltering
         #expand(_results("cross_modality_qc/{sample}/cross_modality_qc.txt"), sample="Sample_5124-NM-2-hg38"),
         #expand(_results("cross_modality_qc/{sample}/cross_modality_qc.txt"), sample=samples),
@@ -61,82 +56,29 @@ rule all:
         #expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
 
 
-
-rule symlinks_atac:
+rule barcode_map:
     input:
-        bcl2fq_report_atac = config["bcl2fq_report_atac"],
+        _resources("barcode_whitelist_multiome_GEX.txt"),
+        _resources("barcode_whitelist_multiome_ATAC.txt"),
     output:
-        json = _results("nf_atac_config.json"),
-    params:
-        indir = config["fastq_dir_atac"],
-        outdir = _results("fastq_atac"),
-        samples = iterate_samples(config["bcl2fq_report_atac"]),
+        _resources("multiome_barcode_map.rds"),
+        _resources("multiome_barcode_map.tsv"),
     shell:
         """
-        createSymLinksATAC () {{
-          local target_dir=$1
-          local link_dir=$2
-          local sample=$3
-          ln -s --force $target_dir/$sample/*R1_001.fastq.gz $link_dir/${{sample}}_R1_001.fastq.gz
-          ln -s --force $target_dir/$sample/*R2_001.fastq.gz $link_dir/${{sample}}_R2_001.fastq.gz
-          ln -s --force $target_dir/$sample/*R3_001.fastq.gz $link_dir/${{sample}}_R3_001.fastq.gz
-        }}
-
-        mkdir -p {params.outdir}
-        for sample in {params.samples}; do
-            echo $sample
-            createSymLinksATAC {params.indir} {params.outdir} $sample
-        done
-
-        python workflow/scripts/build_multiome_json.py --bcl2fq_report {input.bcl2fq_report} --fastq_dir {params.outdir} --modality ATAC > {output.json}
+        Rscript workflow/scripts/make_multiome_barcode_map.R
         """
-
-
-rule symlinks_gex:
-    input:
-        bcl2fq_report = config["bcl2fq_report_gex"],
-    output:
-        json = _results("nf_gex_config.json"),
-    params:
-        indir = config["fastq_dir_gex"],
-        outdir = _results("fastq_gex"),
-        samples = iterate_samples(config["bcl2fq_report_gex"]),
-    shell:
-        """
-        createSymLinksGEX () {{
-          local target_dir=$1
-          local link_dir=$2
-          local sample=$3
-          ln -s --force $target_dir/$sample/*R1_001.fastq.gz $link_dir/${{sample}}_R1_001.fastq.gz
-          ln -s --force $target_dir/$sample/*R2_001.fastq.gz $link_dir/${{sample}}_R2_001.fastq.gz
-        }}
-
-        mkdir -p {params.outdir}
-        for sample in {params.samples}; do
-            echo $sample
-            createSymLinksGEX {params.indir} {params.outdir} $sample
-        done
-
-        python workflow/scripts/build_multiome_json.py --bcl2fq_report {input.bcl2fq_report} --fastq_dir {params.outdir} --modality GEX > {output.json}
-        """
-
-## INSERT RULE FOR RUNNING ATAC NEXTFLOW
-#rule nf_atac:
-
-## INSERT RULE FOR RUNNING GEX NEXTFLOW
-#rule_nf_gex:
 
 #Some downstream programs require gzipped output, while others need it unzipped
 #so we will keep it available in both forms
 rule gzip_starsolo:
     input:
-        mtx = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/{feature_type}/raw/matrix.mtx"),
-        barcodes = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/{feature_type}/raw/barcodes.tsv"),
-        features = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/{feature_type}/raw/features.tsv"),
+        mtx = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/{feature_type}/raw/matrix.mtx"),
+        barcodes = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/{feature_type}/raw/barcodes.tsv"),
+        features = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/{feature_type}/raw/features.tsv"),
     output:
-        mtx_gz = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/{feature_type}/raw/matrix.mtx.gz"),
-        barcodes_gz = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/{feature_type}/raw/barcodes.tsv.gz"),
-        features_gz = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/{feature_type}/raw/features.tsv.gz"),
+        mtx_gz = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/{feature_type}/raw/matrix.mtx.gz"),
+        barcodes_gz = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/{feature_type}/raw/barcodes.tsv.gz"),
+        features_gz = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/{feature_type}/raw/features.tsv.gz"),
     shell:
         """
         gzip -c {input.mtx} > {output.mtx_gz}
@@ -147,9 +89,9 @@ rule gzip_starsolo:
 
 rule dropkick:
     input:
-        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx.gz"),
-        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/barcodes.tsv.gz"),
-        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv.gz"),
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx.gz"),
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/barcodes.tsv.gz"),
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv.gz"),
     output:
         _results("dropkick_{method}_{min_genes}/{sample}/dropkick.h5ad"),
         _results("dropkick_{method}_{min_genes}/{sample}/dropkick.csv"),
@@ -159,7 +101,7 @@ rule dropkick:
         # because dropkick is not available via pip
         #library://porchard/default/dropkick:20220225
     params:
-        indir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
+        indir = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw"),
         outdir = _results("dropkick_{method}_{min_genes}/{sample}"),
         cpus = 2,
         min_genes = "{min_genes}",
@@ -185,10 +127,28 @@ rule dropkick_plots:
         python -u workflow/scripts/run_dropkick_plots.py --ad {input.ad} --outdir {params.outdir}
         """
 
+rule droplet_utils:
+    input:
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+    output:
+        _results("droplet_utils/{sample}/barcode_rank.png"),
+        _results("droplet_utils/{sample}/barcodes_empty.txt"),
+        _results("droplet_utils/{sample}/barcodes_nuclei.txt"),
+        _results("droplet_utils/{sample}/emptydrops.rds"),
+    params:
+        input_10x_dir = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw"),
+        outdir = _results("droplet_utils/{sample}"),
+    shell:
+        """
+        Rscript workflow/scripts/run_dropletutils.R \
+            --input_10x_dir {params.input_10x_dir} \
+            --outdir {params.outdir}
+        """
+
 rule cross_modality_prefiltering:
     input:
-        gex = _results("nf_gex_results/qc/{sample}.qc.txt"),
-        atac = _results("nf_atac_results/ataqv/single-nucleus/{sample}.txt"),
+        gex = _results("nf_gex_results/qc/{sample}-hg38.qc.txt"),
+        atac = _results("nf_atac_results/ataqv/single-nucleus/{sample}-hg38.txt"),
         dropkick = _results("dropkick_multiotsu_100/{sample}/dropkick.csv"),
         barcode_whitelist_gex = _resources("barcode_whitelist_multiome_GEX.txt"),
         barcode_whitelist_atac = _resources("barcode_whitelist_multiome_ATAC.txt"),
@@ -223,7 +183,7 @@ rule cross_modality_prefiltering:
 
 rule doublet_detection:
     input:
-        bam = _results("nf_atac_results/prune/{sample}.pruned.bam"),
+        bam = _results("nf_atac_results/prune/{sample}-hg38.pruned.bam"),
         csv = _results("cross_modality_qc/{sample}/barcodes_prefiltered_for_amulet.csv"),
         autosomes = config["autosomes"],
         blacklist = config["blacklist"],
@@ -243,13 +203,13 @@ rule doublet_detection:
 #NOTE: must generate H5AD file using this singularity container so that versions of scanpy are compatible
 rule anndata_for_qc:
     input:
-        mtx = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx.gz"),
+        mtx = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx.gz"),
         barcodes = _results("cross_modality_qc/{sample}/barcodes_prefiltered.txt"),
         qcstats = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered.txt"),
     output:
         h5ad_file = _results("cross_modality_qc/{sample}/cross_modality_qc_prefiltered.h5ad"),
     params:
-        starsolodir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
+        starsolodir = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw"),
     conda:
         "dropkick"
     shell:
@@ -303,8 +263,8 @@ rule cross_modality_visualization:
 
 rule filter_bams_for_nuclei:
     input:
-        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
-        atac_bam = _results("nf_atac_results/prune/{sample}.pruned.bam"),
+        gex_bam = _results("nf_gex_results/prune/{sample}-hg38.before-dedup.bam"),
+        atac_bam = _results("nf_atac_results/prune/{sample}-hg38.pruned.bam"),
         barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei.txt"),
     output:
         gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
@@ -326,16 +286,16 @@ rule filter_bams_for_nuclei:
 #### UPDATE BARCODE INPUT FILES HERE TO BE ONLY GEX BARCODES
 rule prepare_rna_counts:
     input:
-        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
-        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv"),
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/features.tsv"),
         barcodes_nuclei = _results("cross_modality_qc/{sample}/barcodes_nuclei_gex.txt"),
         barcodes_empty = _results("cross_modality_qc/{sample}/barcodes_empty_gex.txt"),
     output:
-        _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw/genes.tsv"),
+        _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw/genes.tsv"),
         counts_nuclei = _results("counts_by_sample_gex/{sample}/counts_nuclei.rds"),
         counts_empty = _results("counts_by_sample_gex/{sample}/counts_empty.rds"),
     params:
-        input_10x_dir = _results("nf_gex_results/starsolo/{sample}/{sample}.Solo.out/GeneFull_ExonOverIntron/raw"),
+        input_10x_dir = _results("nf_gex_results/starsolo/{sample}-hg38/{sample}-hg38.Solo.out/GeneFull_ExonOverIntron/raw"),
     conda:
         "Renv"
     shell:
@@ -376,7 +336,7 @@ rule define_ambient_gene_regions:
 rule filter_bams_for_ambient_genes:
     input:
         #gex_bam = _results("bam_pass_qc_barcodes/{sample}/pass_qc_barcodes_gex.bam"),
-        gex_bam = _results("nf_gex_results/prune/{sample}.before-dedup.bam"),
+        gex_bam = _results("nf_gex_results/prune/{sample}-hg38.before-dedup.bam"),
         regions = _results("bam_pass_qc_barcodes/{sample}/ambient_gene_regions_{p}.bed"),
     output:
         gex_bam = _results("bam_pass_qc_barcodes/{sample}/prune_barcodes_gex_exclude_ambient_genes_{p}.bam"),

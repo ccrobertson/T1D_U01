@@ -1,21 +1,14 @@
 name: "fiveprime"
 
-runs:
-  5125-NM-1:
-    bcl2fq_report: "data/5125-NM-1/DemuxStats_5125-NM.csv"
-    fastq_dir: "data/5125-NM-1/fastqs_5125-NM"
-    batches_in_run:
-      NM-1: "5125-NM-1-5GEX_AAGATTGG-AAATCCCG"
-  5125-NM-2-8:
-    bcl2fq_report: "data/5125-NM_resequenced_2-8/DemuxStats_5125-NM.csv"
-    fastq_dir: "data/5125-NM_resequenced_2-8/fastqs_5125-NM"
-    batches_in_run:
-      NM-2: "5125-NM-2_TGTAGTCA-TACGATCA"
-      NM-3: "5125-NM-3_ACAATGTG-TAACGGTA"
-      NM-4: "5125-NM-4_GTGGATCA-CAGGGTTG"
-      NM-5: "5125-NM-5_TCTACCAT-GACTCTCC"
-      NM-6: "5125-NM-6_CAATCCCG-TACTACTC"
-      NM-7: "5125-NM-7_TTAATACG-ACCCGAGG"
-      NM-8: "5125-NM-8_ATGGAGGG-AATGGGTT"
+samples:
+  - Sample_5125-NM-1
+  - Sample_5125-NM-2
+  - Sample_5125-NM-3
+  - Sample_5125-NM-4
+  - Sample_5125-NM-5
+  - Sample_5125-NM-6
+  - Sample_5125-NM-7
+  - Sample_5125-NM-8
+
 
 blacklist: "resources/hg38/ENCFF356LFX.bed"

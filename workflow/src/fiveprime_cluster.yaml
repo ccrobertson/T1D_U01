@@ -32,10 +32,10 @@ dropkick_plots:
    mem: "20G"
 
 decontx_prelim:
-   mem: "10G"
+   mem: "20G"
 
 decontx_round2:
-   mem: "10G"
+   mem: "20G"
 
 liger_iNMF:
    mem: "25G"

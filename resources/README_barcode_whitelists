@@ -1,0 +1,16 @@
+# 10X provides a table of barcode lists and the corresponding chemistry here:
+# - https://kb.10xgenomics.com/hc/en-us/articles/115004506263-What-is-a-barcode-whitelist-
+# - NOTE: the barcode whitelists are bundled with cellranger software
+
+ATAC_V1: /lab/work/ccrober/sw/cellranger/cellranger-atac-2.1.0/lib/python/atac/barcodes/737K-cratac-v1.txt
+
+3GEX_V2: /lab/work/ccrober/sw/cellranger/cellranger-7.0.0/lib/python/cellranger/barcodes/737K-august-2016.txt
+3GEX_V3:/lab/work/ccrober/sw/cellranger/cellranger-7.0.0/lib/python/cellranger/barcodes/3M-february-2018.txt
+
+5GEX: /lab/work/ccrober/sw/cellranger/cellranger-7.0.0/lib/python/cellranger/barcodes/737K-august-2016.txt
+
+
+## https://kb.10xgenomics.com/hc/en-us/articles/4412343032205-Where-can-I-find-the-barcode-whitelist-s-for-Single-Cell-Multiome-ATAC-GEX-product-
+# Note these files have the same name but they are different!
+Multiome-ATAC: /lab/work/ccrober/sw/cellranger/cellranger-arc-2.0.1/lib/python/atac/barcodes/737K-arc-v1.txt
+Multiome-GEX: /lab/work/ccrober/sw/cellranger/cellranger-arc-2.0.1/lib/python/cellranger/barcodes/737K-arc-v1.txt

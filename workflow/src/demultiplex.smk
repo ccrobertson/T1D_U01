@@ -5,6 +5,7 @@ import os
 from functools import partial
 import pandas as pd
 import math
+import glob
 
 
 name = config["name"]
@@ -37,7 +38,7 @@ def sample_to_batch(sample):
     return config["libraries"][sample]["Batch"]
 
 def batch_to_donors(batch):
-    return config["batches"][batch].keys()
+    return config["batches"][batch]["donors"].keys()
 
 def sample_to_donors(sample):
     batch = sample_to_batch(sample)
@@ -50,7 +51,7 @@ def count_donors(sample):
 def genotyped_donors_by_sample_as_list(sample, genotyped_donors):
     donors_in_sample = sample_to_donors(sample)
     donors_in_vcf = pd.read_table(genotyped_donors, header=None).iloc[:,0].tolist()
-    overlap = sorted(list(set(donors_in_batch) & set(donors_in_vcf)))
+    overlap = sorted(list(set(donors_in_sample) & set(donors_in_vcf)))
     return overlap
 
 def genotyped_donors_by_sample_as_string(sample, genotyped_donors):
@@ -71,24 +72,32 @@ def calculate_max_missing_by_sample(sample, genotyped_donors):
     return max_missing_rate
 
 
-def get_bam(sample, bamytpe):
+def get_bam(sample, bamtype):
     bam = config["samples"][sample]["bam_"+bamtype]
     return bam
 
 def get_barcodes(sample):
     barcodes = config["samples"][sample]["barcodes"]
-    return bam
+    return barcodes
+
+def get_chunks(sample):
+    chunk_files = glob.glob(_results("barcodes_chunked/"+sample+"/barcodes.*.txt"))
+    chunk_suffixes = [re.sub(".txt", "", re.sub("barcodes.", "", os.path.basename(x))) for x in chunk_files]
+    return chunk_suffixes
 
 
 rule all:
     input:
+        #~~~~~~~~ chunk barcodes
+        expand(_results("barcodes_chunked/{sample}"), sample=samples),
         #~~~~~~~~ demuxlet
         expand(_results("demuxlet-unfiltered/{sample}/demuxlet.best"), sample=samples),
+        #expand(_results("demuxlet-unfiltered/{sample}/demuxlet.best"), sample=samples),
         #expand(_results("demuxlet-unfiltered/5124-{batch}/demuxlet.best"), batch=batches),
         #expand(_results("demuxlet-auto/5124-{batch}/demuxlet.best"), batch=batches),
         #expand(_results("demuxlet-p01/5124-{batch}/demuxlet.best"), batch=batches),
         #~~~~~~~~ souporcell
-        #expand(_results("souporcell_check_by_sample-unfiltered/5125-{batch}/corrplot_r_by_donor.png"), batch="NM-1"),
+        #expand(_results("souporcell_check_by_sample-unfiltered/{sample}/corrplot_r_by_donor.png"), sample=samples),
         #expand(_results("souporcell_check_by_sample-unfiltered/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
         #expand(_results("souporcell_check_by_sample-auto/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
         #expand(_results("souporcell_check_by_sample-p01/5124-{batch}/corrplot_r_by_donor.png"), batch=batches),
@@ -98,19 +107,25 @@ rule all:
 
 rule chunk_barcodes:
     input:
-        barcodes = lambda wildcards: get_barcodes(wildcard.sample),
+        barcodes = lambda wildcards: get_barcodes(wildcards.sample),
     output:
-        barcodes_chunked = _results("demuxlet_barcodes_chunked/{sample}/bc_{chunk}"),
+        directory(_results("barcodes_chunked/{sample}")),
     params:
-        prefix = _results("demuxlet_barcodes_chunked/{sample}/bc_"),
+        prefix = _results("barcodes_chunked/{sample}/barcodes."),
     shell:
         """
-        split --N 1000 {input.barcodes} {params.prefix}
+        mkdir {output}
+        split --lines 500 --suffix-length 10 --additional-suffix=.txt {input.barcodes} {params.prefix}
         """
+
+
 
 #DEMUXLET2: https://github.com/statgen/popscle
 #NOTE: example for using demuxlet "v2":
 #https://github.com/porchard/Multiome-QC-NextFlow/blob/master/qc.nf#L114
+# MAJOR BUGS WHEN I RUN THIS VERSION:
+# SNG.POSTERIOR is always 1
+# BEST.POSTERIOR is always 1 for doublets and 0 for singlets
 #popscle demuxlet --sam $bam
 # --vcf $vcf
 # --alpha 0
@@ -120,27 +135,43 @@ rule chunk_barcodes:
 # --out ${library}-${modality}
 rule demuxlet:
     input:
-        bam = lambda wildcards: get_bam(wildcard.sample, wildcard.bamtype),
-        barcodes = _results("demuxlet_barcodes_chunked/{sample}/bc_{chunk}"),
+        bam = lambda wildcards: get_bam(wildcards.sample, wildcards.bamtype),
+        barcodes = _results("barcodes_chunked/{sample}/barcodes.{chunk}.txt"),
         vcf = config["donor_genotypes"],
     output:
-        _results("demuxlet-{bamtype}/{sample}/demuxlet.best"),
+        _results("demuxlet-{bamtype}/{sample}/chunked/demuxlet.{chunk}.best"),
     params:
-        prefix = _results("demuxlet-{bamtype}/{sample}/demuxlet"),
+        prefix = _results("demuxlet-{bamtype}/{sample}/chunked/demuxlet.{chunk}"),
         donors = lambda wildcards: genotyped_donors_by_sample_as_string2(wildcards.sample, config["genotyped_donors"]),
     container:
         "workflow/envs/demuxlet_20220204.sif",
     shell:
         """
-        echo {params.donors} | sed 's/,/\\n/g' > {params.prefix}.donor_list.txt
+        echo {params.donors} | sed 's/,/\\n/g' > {params.prefix}.donors.txt
         popscle demuxlet --sam {input.bam} \
             --tag-group CB \
             --tag-UMI UB \
             --vcf {input.vcf} \
             --field GP \
-            --sm-list {params.prefix}.donor_list.txt \
+            --sm-list {params.prefix}.donors.txt \
             --group-list {input.barcodes} \
             --out {params.prefix}
+        """
+
+rule concat_demuxlet:
+    input:
+        first = lambda wildcards: expand(_results("demuxlet-unfiltered/{{sample}}/chunked/demuxlet.{chunk}.best"), chunk=get_chunks(wildcards.sample)[0]),
+        bests = lambda wildcards: expand(_results("demuxlet-unfiltered/{{sample}}/chunked/demuxlet.{chunk}.best"), chunk=get_chunks(wildcards.sample)),
+    output:
+        best = _results("demuxlet-unfiltered/{sample}/demuxlet.best"),
+    params:
+        indir = _results("demuxlet-unfiltered/{sample}/chunked/"),
+    shell:
+        """
+        awk 'NR==1' {input.first} > {output.best}
+        for f in {input.bests}; do
+            awk 'NR>1' $f >> {output.best}
+        done
         """
 
 
@@ -163,8 +194,8 @@ rule define_doublets:
 # https://github.com/wheaton5/souporcell/issues/141
 rule souporcell:
     input:
-        bam = lambda wildcards: config['libraries'][wildcards.sample]["bam_"+wildcards.bamtype],
-        barcodes = lambda wildcards: config['libraries'][wildcards.sample]['barcodes'],
+        bam = lambda wildcards: get_bam(wildcards.sample, wildcards.bamtype),
+        barcodes = lambda wildcards: get_barcodes(wildcards.sample),
         fasta = _resources("hg38/hg38_cvb4.fa"),
         common_variants = _resources("common_variants_grch38_fixed.vcf"),
         donor_genotypes = config["donor_genotypes_unzipped"],
@@ -172,8 +203,8 @@ rule souporcell:
         cluster_genotypes = _results("souporcell-{bamtype}/{sample}/cluster_genotypes.vcf"),
     params:
         outdir = _results("souporcell-{bamtype}/{sample}"),
-        k = lambda wildcards: count_genotyped_subjects_by_batch(wildcards.sample, config["genotyped_donors"]),
-        donor_list_as_string = lambda wildcards: genotyped_subjects_by_batch_as_string(wildcards.sample, config["genotyped_donors"]),
+        k = lambda wildcards: count_genotyped_donors_by_sample(wildcards.sample, config["genotyped_donors"]),
+        donor_list_as_string = lambda wildcards: genotyped_donors_by_sample_as_string(wildcards.sample, config["genotyped_donors"]),
         threads=10,
         sample = "{sample}",
     shell:
@@ -221,7 +252,7 @@ rule souporcell_check_by_sample:
     params:
         prefix = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors"),
         prefix_filtered = _results("souporcell_check_by_sample-{bamtype}/{sample}/souporcell_clusters_and_donors_filtered"),
-        max_missing = lambda wildcards: calculate_max_missing_by_batch(wildcards.sample, config["genotyped_donors"])
+        max_missing = lambda wildcards: calculate_max_missing_by_sample(wildcards.sample, config["genotyped_donors"])
     conda:
         "genetics"
     shell:

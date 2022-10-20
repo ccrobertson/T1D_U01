@@ -12,8 +12,8 @@ souporcell:
   mem: "15G"
 
 demuxlet:
-  time: "5-00:00"
-  mem: "60G"
+  time: "1-00:00"
+  mem: "10G"
 
 
 souporcell_check_by_sample:

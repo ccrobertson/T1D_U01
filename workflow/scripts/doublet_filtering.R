@@ -17,7 +17,7 @@ option_list <- list(
     c("--doublets"), type = "numeric", help = "List of barcodes flagged as doublets by AMULET."
   ),
   make_option(
-    c("--map"), type = "numeric", help = "File to use to map atac barcodes to gex barcodes."
+    c("--barcode_map"), type = "numeric", help = "File to use to map atac barcodes to gex barcodes."
   ),
   make_option(
     c("--input_counts"), type = "character", help = "Input gex counts matrix."
@@ -34,19 +34,19 @@ option_parser <- OptionParser(usage = "usage: Rscript %prog [options]",
                               option_list = option_list, add_help_option = TRUE)
 opts <- parse_args(option_parser)
 
-
+### Testing
 # opts = list()
-# opts$seurat_prelim = "results/multiome/seurat_prelim/Sample_5124-NM-2-hg38/seurat_obj.rds"
-# #opts$seurat_round3 = "results/multiome/seurat_round3/Sample_5124-NM-2-hg38/seurat_obj.rds"
-# opts$qc = "results/multiome/cross_modality_qc/Sample_5124-NM-2-hg38/cross_modality_qc.txt"
-# opts$doublets = "results/multiome/amulet/Sample_5124-NM-2-hg38/MultipletBarcodes_01.txt"
-# opts$outdir = "results/multiome/amulet/Sample_5124-NM-2-hg38"
-
+# opts$seurat_obj = "results/multiome/seurat_prelim/Sample_5124-NM-2/seurat_obj.rds"
+# opts$barcode_map = "resources/multiome_barcode_map.rds"
+# opts$doublets = "results/multiome/amulet/Sample_5124-NM-2/MultipletBarcodes_01.txt"
+# opts$input_counts = "results/multiome/counts_by_sample_gex/Sample_5124-NM-2/counts_nuclei.rds"
+# opts$output_counts = "results/multiome/counts_by_sample_gex/Sample_5124-NM-2/counts_nuclei_no_doublets.rds"
+# opts$plotfile = "results/multiome/seurat_prelim/Sample_5124-NM-2/seurat_prelim_umap_doublets.png"
 
 #get doublet gex barcodes
 doublets_barcode_atac = scan(opts$doublets, what="character")
-map = read.table(opts$map, header=TRUE)
-doublets_barcode_gex = map$barcode_gex[map$barcode_atac %in% doublets_barcode_atac]
+map = readRDS(opts$barcode_map)
+doublets_barcode_gex = map$GEX[map$ATAC %in% doublets_barcode_atac]
 
 
 #get Seurat objects pre and post decontamination

@@ -1,10 +1,14 @@
 library(yaml)
 library(rjson)
 
+
+
+
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #     batch_design.json
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-batch_info = read.table(file="data/batch_design3.tsv", header=TRUE)
+batch_info = read.table(file="data/batch_design.tsv", header=TRUE)
 
 split_by = function(x, by) {
   return(split(x, f=x[,by]))
@@ -67,7 +71,7 @@ for (i in 1:length(multiome_samples)) {
   s = multiome_samples[i]
   cat(s,"\n")
   demultiplex_list[[s]] = list()
-  demultiplex_list[[s]][["barcodes"]] = gsub("{SAMPLE}", s, "results/multiome/bam_pass_qc_barcodes/{SAMPLE}/pass_qc_barcodes_gex.txt", fixed=TRUE)
+  demultiplex_list[[s]][["barcodes"]] = gsub("{SAMPLE}", s, "results/multiome/droplet_utils/{SAMPLE}/barcodes_nuclei.txt", fixed=TRUE)
   demultiplex_list[[s]][["bam_unfiltered"]] = gsub("{SAMPLE}", s, "results/multiome/nf_gex_results/prune/{SAMPLE}-hg38.before-dedup.bam", fixed=TRUE)
   demultiplex_list[[s]][["bam_auto"]] = gsub("{SAMPLE}", s, "results/multiome/bam_pass_qc_barcodes/{SAMPLE}/prune_barcodes_gex_exclude_ambient_genes_auto.bam", fixed=TRUE)
   demultiplex_list[[s]][["bam_p01"]] = gsub("{SAMPLE}", s, "results/multiome/bam_pass_qc_barcodes/{SAMPLE}/prune_barcodes_gex_exclude_ambient_genes_0.01.bam", fixed=TRUE)
@@ -79,24 +83,115 @@ for (i in 1:length(fiveprime_samples)) {
   demultiplex_list[[s]][["barcodes"]] = gsub("{SAMPLE}", s, "results/fiveprime/droplet_utils/{SAMPLE}/barcodes_nuclei.txt", fixed=TRUE)
   demultiplex_list[[s]][["bam_unfiltered"]] = gsub("{SAMPLE}", s, "results/fiveprime/starsolo/{SAMPLE}/starsolo.Aligned.sortedByCoord.out.bam", fixed=TRUE)
 }
-
-
 write_yaml(list(samples=demultiplex_list), file="workflow/src/demultiplex_samples.yaml")
 
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#     liger.yaml
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+multiome_samples = c("Sample_5124-NM-1",
+                      "Sample_5124-NM-2",
+                      "Sample_5124-NM-3",
+                      "Sample_5124-NM-4",
+                      "Sample_5124-NM-5",
+                      "Sample_5124-NM-6",
+                      "Sample_5124-NM-7",
+                      "Sample_5124-NM-8")
+
+fiveprime_samples = c("Sample_5125-NM-1",
+                          "Sample_5125-NM-2",
+                          "Sample_5125-NM-3",
+                          "Sample_5125-NM-4",
+                          "Sample_5125-NM-5",
+                          "Sample_5125-NM-6",
+                          "Sample_5125-NM-7",
+                          "Sample_5125-NM-8")
+
+threeprime_samples = c("Sample_HPAP036_gex",
+                          "Sample_HPAP038_gex",
+                          "Sample_HPAP039_gex",
+                          "Sample_HPAP040_gex",
+                          "Sample_HPAP044_gex",
+                          "Sample_HPAP045_gex",
+                          "Sample_HPAP055_gex",
+                          "Sample_HPAP059-CVB4_gex",
+                          "Sample_HPAP059-Cyto_gex",
+                          "Sample_HPAP059-Mock_gex",
+                          "Sample_ICRH122_gex",
+                          "Sample_ICRH134-CVB4_gex",
+                          "Sample_ICRH134-Cyto_gex",
+                          "Sample_ICRH134-Mock_gex",
+                          "Sample_ICRH135-CVB4_gex",
+                          "Sample_ICRH135-Cyto_gex",
+                          "Sample_ICRH135-Mock_gex")
+
+#atac_samples = c()
+
+counts_list = list()
+for (i in 1:length(multiome_samples)) {
+  s = multiome_samples[i]
+  cat(s,"\n")
+  counts_list[[s]] = gsub("{SAMPLE}", s, "results/multiome/decontx_round2/{SAMPLE}/counts_low_contamination_decontaminated.rds", fixed=TRUE)
+}
+for (i in 1:length(fiveprime_samples)) {
+  s = fiveprime_samples[i]
+  cat(s,"\n")
+  counts_list[[s]] = gsub("{SAMPLE}", s, "results/fiveprime/decontx_round2/{SAMPLE}/counts_low_contamination_decontaminated.rds", fixed=TRUE)
+}
+for (i in 1:length(threeprime_samples)) {
+  s = threeprime_samples[i]
+  cat(s,"\n")
+  counts_list[[s]] = gsub("{SAMPLE}", s, "results/threeprime/decontx_round2/{SAMPLE}/counts_low_contamination_decontaminated.rds", fixed=TRUE)
+}
+
+write_yaml(list(counts=counts_list), file="workflow/src/liger_samples.yaml")
 
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #     fgwas.yaml
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-clusters = c('acinar','alpha','beta','delta','ductal','endothelial','gamma','immune','stellate')
+## Annotation sets
+annot_sets = list()
 
+#NOTE: excluding endothelial and immune, too few cells
+my_clusters = c('acinar','alpha','beta','delta','ductal','gamma','stellate', 'immune', 'endothelial')
+annot_sets[["tCRE"]] = c(paste0(my_clusters, "_tCRE"), "wholeIslet_tCRE")
+annot_sets[["ATAC_1kb"]] = c(paste0(my_clusters, "_ATAC_1kb"), "wholeIslet_ATAC_1kb")
+annot_sets[["ATAC_300b"]] = c(paste0(my_clusters, "_ATAC_300b"), "wholeIslet_ATAC_300b")
+
+
+
+ricardo_clusters = c("INS", "GCG", "KRT19", "PDGFRA", "PPY", "PRSS1","RGS5","SDS","SST", "TPSAB1", "VWF")
+annot_sets[["Ricardo_clusters"]] = c(paste0(ricardo_clusters,"_summits.ext150.min2"),
+                                    paste0(ricardo_clusters,"_summits.ext150.reproducible"),
+                                    paste0(ricardo_clusters,"_summits.ext150.cluster_specific"),
+                                    paste0(ricardo_clusters,"_summits.ext150.noblacklist"),
+                                    "wholeIslet_ATAC_300b"
+                                  )
+## Annot source files
 annot_list = list()
-for (c in clusters) {
+annot_list[["hg38"]] = list()
+for (c in my_clusters) {
   cat(c,"\n")
-  annot_list[[paste0(c, "_tCRE")]] = gsub("{cluster}", c, "results/scafe/scafe_by_cluster/{cluster}/annotate/{cluster}/bed/{cluster}.CRE.annot.bed", fixed=TRUE)
-  annot_list[[paste0(c, "_ATAC")]] = gsub("{cluster}", c, "results/macs2/peakcalls/noNM3/{cluster}_summits_ext500_noblacklist.bed", fixed=TRUE)
+  annot_list[["hg38"]][[paste0(c, "_tCRE")]] = gsub("{cluster}", c, "results/scafe_old/scafe_by_cluster/{cluster}/annotate/{cluster}/bed/{cluster}.CRE.annot.bed", fixed=TRUE)
+  annot_list[["hg38"]][[paste0(c, "_ATAC_1kb")]] = gsub("{cluster}", c, "results/macs2/peakcalls/noNM3/{cluster}_summits_ext500_noblacklist.bed", fixed=TRUE)
+  annot_list[["hg38"]][[paste0(c, "_ATAC_300b")]] = gsub("{cluster}", c, "results/macs2/peakcalls/noNM3/{cluster}_summits_ext150_noblacklist.bed", fixed=TRUE)
+}
+annot_list[["hg38"]][["wholeIslet_tCRE"]] = "results/fgwas/annotations/wholeIslet_tCRE.bed"
+annot_list[["hg38"]][["wholeIslet_ATAC_300b"]] = "results/fgwas/annotations/wholeIslet_ATAC_300b.bed"
+annot_list[["hg38"]][["wholeIslet_ATAC_1kb"]] = "results/fgwas/annotations/wholeIslet_ATAC_1kb.bed"
+
+
+annot_list[["hg19"]] = list()
+for (c in ricardo_clusters) {
+  cat(c,"\n")
+  annot_list[["hg19"]][[paste0(c, "_summits.ext150.min2")]] = gsub("{cluster}", c, "results/fgwas/annotations/ricardo_annots_hg19_reformatted/{cluster}_summits.ext150.min2.bed.bed3", fixed=TRUE)
+  annot_list[["hg19"]][[paste0(c, "_summits.ext150.reproducible")]] = gsub("{cluster}", c, "results/fgwas/annotations/ricardo_annots_hg19_reformatted/{cluster}_summits.ext150.reproducible.bed3", fixed=TRUE)
+  annot_list[["hg19"]][[paste0(c, "_summits.ext150.cluster_specific")]] = gsub("{cluster}", c, "results/fgwas/annotations/ricardo_annots_hg19_reformatted/{cluster}_summits.ext150.cluster_specific.bed.bed3", fixed=TRUE)
+  annot_list[["hg19"]][[paste0(c, "_summits.ext150.noblacklist")]] = gsub("{cluster}", c, "results/fgwas/annotations/ricardo_annots_hg19_reformatted/{cluster}_summits.noblacklist.ext150.bed.bed3", fixed=TRUE)
+  annot_list[["hg19"]][[paste0(c, "_peaks.narrowPeak")]] = gsub("{cluster}", c, "results/fgwas/annotations/ricardo_annots_hg19_reformatted/{cluster}_peaks.narrowPeak.bed3", fixed=TRUE)
 }
 
-write_yaml(list(fgwas_annotations=annot_list), file="workflow/src/fgwas_annotations.yaml")
+write_yaml(list(fgwas_sets=annot_sets, fgwas_annotation_sources=annot_list), file="workflow/src/fgwas_annotations.yaml")

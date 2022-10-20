@@ -24,10 +24,10 @@ opts <- parse_args(option_parser)
 
 # ### Testing
 # opts = list()
-# opts$barcode_to_cluster = "results/liger/3GEX_all/liger_clusters.tsv"
-# opts$deg = "results/liger/3GEX_all/liger_deg_by_cluster.rds"
+# opts$barcode_to_cluster = "results/liger/3GEX/liger_clusters.tsv"
+# opts$deg = "results/liger/3GEX/liger_deg_by_cluster.rds"
 # opts$markers = "workflow/src/markers.yaml"
-# opts$outdir = "results/liger/3GEX_all"
+# opts$outdir = "results/liger/3GEX"
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

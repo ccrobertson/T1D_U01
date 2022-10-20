@@ -8,13 +8,13 @@ __default__:
 
 
 liger_iNMF:
-   mem: "25G"
+   mem: "100G"
 
 liger_clustering:
-  mem: "50G"
+  mem: "100G"
 
 liger_plots:
-  mem: "50G"
+  mem: "100G"
 
 export_clusters:
-  mem: "50G"
+  mem: "100G"

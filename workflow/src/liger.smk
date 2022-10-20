@@ -15,11 +15,12 @@ _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-configfile: _data("nandini_run_design.json")
+configfile: _data("batch_design.json")
 configfile: "workflow/src/markers.yaml"
+configfile: "workflow/src/liger_samples.yaml"
 
 clusters = ["ductal", "acinar", "alpha", "beta", "delta", "gamma", "stellate", "endothelial", "immune"]
-
+sets = ["multiome", "5GEX", "3GEX", "multiome_5GEX", "multiome_5GEX_3GEX"]
 
 def get_samples_for_set(set):
     samples = config["liger_sets"][set]
@@ -33,10 +34,11 @@ def get_count_files_for_set(set):
 
 rule all:
     input:
-        expand(_results("{set}/umap_INS.png"), set=["multimodal_all", "multimodal_noNM3", "3GEX_all", "3GEX_noNM3"]),
-        expand(_results("{set}/liger_clusters.tsv"), set=["multimodal_all", "multimodal_noNM3", "3GEX_all", "3GEX_noNM3"]),
-        expand(_results("{set}/cluster_to_cell_type.csv"), set=["multimodal_all", "multimodal_noNM3", "3GEX_all", "3GEX_noNM3"]),
-        expand(_results("{set}/barcode_to_cluster_to_cell_type.csv"), set=["multimodal_all", "multimodal_noNM3", "3GEX_all", "3GEX_noNM3"]),
+        #expand(_results("{set}/liger_obj.rds"), set=sets),
+        #expand(_results("{set}/liger_clusters.tsv"), set=sets),
+        #expand(_results("{set}/cluster_to_cell_type.csv"), set=sets),
+        #expand(_results("{set}/umap_INS.png"), set=sets),
+        expand(_results("{set}/barcode_to_cluster_to_cell_type.csv"), set=sets),
 
 
 rule liger_iNMF:
@@ -48,6 +50,7 @@ rule liger_iNMF:
         outdir = _results("{set}"),
     shell:
         """
+        echo "DUMMY"
         Rscript workflow/scripts/run_liger_iNMF.R --outdir {params.outdir} {input.count_matrices}
         """
 
@@ -68,6 +71,7 @@ rule liger_plots:
         liger_obj = _results("{set}/liger_obj_clusters.rds"),
     output:
         _results("{set}/umap_INS.png"),
+        _results("{set}/liger_deg_by_cluster.rds"),
     params:
         outdir = _results("{set}"),
     shell:

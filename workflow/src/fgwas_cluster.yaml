@@ -7,12 +7,17 @@ __default__:
   time: "4:00:00"
 
 
-fgwas_prep:
+format_gwas:
   mem: "100G"
-  time: "3-00:00:00"
 
+fgwas_prep:
+  mem: "20G"
+  time: "2:00:00"
 
 fgwas_run:
-  mem: "30G"
-  time: "48:00:00"
+  mem: "10G"
+  time: "4:00:00"
 
+fgwas_run_cond:
+  mem: "10G"
+  time: "4:00:00"

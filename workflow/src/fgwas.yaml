@@ -1,5 +1,9 @@
 name: "fgwas"
 
 gwas_stats:
-  - T1D: "/lab/data/gwas/2021-01_chiou_t1d/fgwas/GCST90014023_hg19_all_snps.fgwas.txt.gz"
-  - T2D: "/lab/work/albanus/2020_nih_islets_sn_t1d/data/summary_stats_for_fgwas/T2D_DIAMANTE.txt.gz"
+  T1D_Crouch: 
+    hg38: "results/fgwas/gwas_stats/T1D_Crouch-hg38/GCST90013791.h.tsv.gz"
+  T1D_Chiou:
+    hg38: "results/fgwas/gwas_stats/T1D_Chiou-hg38/34012112-GCST90014023-EFO_0001359.h.tsv.gz"  
+  T2D_DIAMANTE: 
+    hg19: "results/fgwas/gwas_stats/T2D_DIAMANTE-hg19/formatted.txt.gz"

@@ -1,0 +1,17 @@
+name: "atac"
+
+samples:
+  - Sample_HPAP036_atac
+  - Sample_HPAP038_atac
+  - Sample_HPAP039_atac
+  - Sample_HPAP040_atac
+  - Sample_HPAP044_atac
+  - Sample_HPAP045_atac
+  - Sample_HPAP055_atac
+  - Sample_ICRH122_atac
+  - Sample_ICRH134-CVB4_atac
+  - Sample_ICRH134-Cyto_atac
+  - Sample_ICRH134-Mock_atac
+  - Sample_ICRH135-CVB4_atac
+  - Sample_ICRH135-Cyto_atac
+  - Sample_ICRH135-Mock_atac

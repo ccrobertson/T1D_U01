@@ -1,0 +1,30 @@
+__default__:
+  mem: "6G"
+  ntasks: "1"
+  cpus: "1"
+  name: "JOBNAME.{rule}.{wildcards}"
+  output: "logs/smk.atac.{rule}.{wildcards}.out"
+  time: "4:00:00"
+
+
+cellranger:
+   mem: "50G"
+   cpus: "10"
+   time: "2-00:00:00"
+
+bam_autosomes_sorted:
+   cpus: "10"
+   time: "3-00:00:00"
+
+
+qc:
+   mem: "20G"
+
+
+
+decontx_prelim:
+   mem: "20G"
+
+decontx_round2:
+   mem: "20G"
+

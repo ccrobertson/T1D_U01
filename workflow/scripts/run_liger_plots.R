@@ -44,13 +44,15 @@ liger_obj = readRDS(opts$liger_obj)
 # Marker gene plots
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+nsamples = length(liger_obj@raw.data)
+
 ## Known marker genes
 known_markers = c("INS", "GCG", "SST", "PPY", "KRT19", "PRSS1", "PTPRC", "VWF", "SDS", "RGS5")
 #pdf(file.path(opts$outdir, "umap_known_markers_by_dataset.pdf"))
 for ( i in 1:length(known_markers)) {
     gene = known_markers[i]
     cat("Plotting", gene, "\n")
-    png(file.path(opts$outdir, paste0("umap_",gene,".png")))
+    png(file.path(opts$outdir, paste0("umap_",gene,".png")), width=1000, height=250*nsamples)
     plist = plotGene(liger_obj, gene, axis.labels = c('UMAP 1', 'UMAP 2'), return.plots = TRUE)
     p = plot_grid(plotlist=plist, ncol=2)
     print(p)

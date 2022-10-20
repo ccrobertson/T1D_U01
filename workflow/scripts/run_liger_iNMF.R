@@ -48,7 +48,7 @@ for (i in 1:length(count_matrix_files)) {
 
 ## Create Liger object
 cat("Creating liger object\n")
-liger_obj = createLiger(counts)
+liger_obj = createLiger(counts, take.gene.union=TRUE)
 
 ## Preprocessing
 cat("Preprocessing\n")

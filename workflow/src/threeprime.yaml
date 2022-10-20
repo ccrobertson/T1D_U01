@@ -1,0 +1,20 @@
+name: "threeprime"
+
+samples:
+  - Sample_HPAP036_gex
+  - Sample_HPAP038_gex
+  - Sample_HPAP039_gex
+  - Sample_HPAP040_gex
+  - Sample_HPAP044_gex
+  - Sample_HPAP045_gex
+  - Sample_HPAP055_gex
+  - Sample_ICRH122_gex
+  - Sample_ICRH134-CVB4_gex
+  - Sample_ICRH134-Cyto_gex
+  - Sample_ICRH134-Mock_gex
+  - Sample_ICRH135-CVB4_gex
+  - Sample_ICRH135-Cyto_gex
+  - Sample_ICRH135-Mock_gex
+  - Sample_HPAP059-CVB4_gex
+  - Sample_HPAP059-Cyto_gex
+  - Sample_HPAP059-Mock_gex

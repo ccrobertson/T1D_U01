@@ -29,7 +29,7 @@ def fastq_dir_by_sample(sample):
     return config['libraries'][sample]['fastq_dir']
 
 def fastqs_by_sample(sample):
-    return = config['libraries'][sample]['fastqs']
+    return config['libraries'][sample]['fastqs']
 
 def fastq_prefix_by_sample(sample):
     return config['libraries'][sample]['fastq_prefix']
@@ -54,10 +54,31 @@ rule all:
         #expand(_results("starsolo/{sample}/starsolo.Solo.out/{feature_type}/raw/genes.tsv"),sample="Sample_5125-NM-1_NM-1", feature_type=['Gene', 'GeneFull', 'GeneFull_Ex50pAS', 'GeneFull_ExonOverIntron']),
         #~~~~~~~~ qc
         #expand(_results("qc/{sample}.qc.txt"), sample="Sample_5125-NM-1_NM-1"),
-        expand(_results("qc/{sample}.qc.metrics.png"), sample=samples),
+        #expand(_results("qc/{sample}.qc.metrics.png"), sample=samples),
+        #expand(_results("barcode_filtering/{sample}/barcodes_nuclei.txt"), sample=samples),
         #~~~~~~~~ seurat_round3
         expand(_results("seurat_round3/{sample}/seurat_obj.rds"), sample=samples),
 
+
+# rule fastqc:
+#     input:
+#         fastq_1 = lambda wildcards: fastqs_by_sample(wildcards.sample)[0],
+#         fastq_2 = lambda wildcards: fastqs_by_sample(wildcards.sample)[1],
+#     output:
+#         ### need way to extract filenames from fastq_1 and fastq2 paths
+#         ## and replace fastq.gz  with _fastq.html
+#     params:
+#         outdir = _results("fastqc"),
+#     shell:
+#         """
+#         fastqc {input.fastq_1} -o {params.outdir}
+#         fastqc {input.fastq_2} -o {params.outdir}
+#         """
+#
+# rule multiqc:
+#
+#
+#
 
 rule cellranger:
     input:
@@ -187,9 +208,24 @@ rule gzip_starsolo:
         """
 
 
-rule qc:
+##### STILL NEED TO RUN THIS STEP
+rule prune:
     input:
         bam = _results("starsolo/{sample}/starsolo.Aligned.sortedByCoord.out.bam"),
+    output:
+        bam = _results("prune/{sample}/starsolo.before-dedup.bam"),
+    container:
+        "workflow/envs/porchard_snatac_general_20220107.sif"
+    shell:
+        """
+        samtools view -h -b -q 255 -F 4 -F 256 -F 2048 {input.bam} > {output.bam}
+        samtools index {output.bam}
+        """
+
+
+rule qc:
+    input:
+        bam = _results("prune/{sample}/starsolo.pruned.bam"),
         mtx = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
         barcodes = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/barcodes.tsv"),
     output:
@@ -231,11 +267,51 @@ rule droplet_utils:
             --outdir {params.outdir}
         """
 
+
+rule barcode_filtering:
+    input:
+        gex_qc = _results("qc/{sample}.qc.txt"),
+        droplet_utils_nuclei = _results("droplet_utils/{sample}/barcodes_nuclei.txt"),
+        droplet_utils_empty = _results("droplet_utils/{sample}/barcodes_empty.txt"),
+    output:
+        _results("barcode_filtering/{sample}/barcodes_nuclei.txt"),
+        _results("barcode_filtering/{sample}/barcodes_empty.txt"),
+        _results("barcode_filtering/{sample}/qc_density_all.png"),
+    params:
+        outdir = _results("barcode_filtering/{sample}"),
+        sample = "{sample}",
+    conda:
+        "Renv"
+    shell:
+        """
+        Rscript workflow/scripts/barcode_filtering_gex.R \
+            --gex_qc {input.gex_qc} \
+            --droplet_utils_nuclei {input.droplet_utils_nuclei} \
+            --droplet_utils_empty {input.droplet_utils_empty} \
+            --outdir {params.outdir} \
+            --sample {params.sample}
+        """
+
+
+
+#### ADD GEX DOUBLET DETECTION
+# rule doublet_finder:
+#     input:
+#     output:
+#         _results("doublet_finder/{sample}/doublet_barcodes.txt"),
+#     shell:
+#         """
+#         Rscript workflow/scripts/run_doublet_finder.R \
+#             --input
+#
+#         """
+
+
 rule prepare_rna_counts:
     input:
-        _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
-        barcodes_nuclei = _results("droplet_utils/{sample}/barcodes_nuclei.txt"),
-        barcodes_empty = _results("droplet_utils/{sample}/barcodes_empty.txt"),
+        mtx = _results("starsolo/{sample}/starsolo.Solo.out/GeneFull_ExonOverIntron/raw/matrix.mtx"),
+        barcodes_nuclei = _results("barcode_filtering/{sample}/barcodes_nuclei.txt"),
+        barcodes_empty = _results("barcode_filtering/{sample}/barcodes_empty.txt"),
     output:
         counts_nuclei = _results("counts_protein_coding/{sample}/counts_nuclei.rds"),
         counts_empty = _results("counts_protein_coding/{sample}/counts_empty.rds"),

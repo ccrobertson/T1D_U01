@@ -32,7 +32,7 @@ rule all:
      input:
         #expand(_results("imputation_results/{source}/chr{chr}.donors_only.dose.vcf.gz"), chr=20, source=['nih_20220216','6719-NM']),
         #expand(_results("imputation_results_combined/chr20.donors_only.{filter}.dose.vcf.gz"), filter="maf_gt_1pct__rsq_gt_pt95"),
-        expand(_results("imputation_results_combined/all_chromosomes.donors_only.{filter}.bed"), filter=['maf_gt_1pct__rsq_gt_pt95','maf_gt_1pct__rsq_gt_pt30']),
+        expand(_results("imputation_results_combined/all_chromosomes.donors_only.{filter}.bed"), filter=['maf_gt_1pct__rsq_gt_pt95','maf_gt_1pct__rsq_gt_pt30','maf_gt_5pct__rsq_gt_pt95']),
 
 
 ### NOTE: rsq filter did not work in TOPMED imputation
@@ -78,6 +78,20 @@ rule filter_variants_round2:
         bcftools view -i 'R2>0.95' --threads 10 -Oz -o {output.vcf} {input.vcf}
         tabix -p vcf {output.vcf}
         """
+
+rule filter_variants_round3:
+    input:
+        vcf = _results("imputation_results/{source}/chr{chr}.donors_only.maf_gt_1pct__rsq_gt_pt95.dose.vcf.gz"),
+    output:
+        vcf = _results("imputation_results/{source}/chr{chr}.donors_only.maf_gt_5pct__rsq_gt_pt95.dose.vcf.gz"),
+    conda:
+        "genetics"
+    shell:
+        """
+        bcftools view -i 'MAF>0.05' --threads 10 -Oz -o {output.vcf} {input.vcf}
+        tabix -p vcf {output.vcf}
+        """
+
 
 rule merge_vcfs:
     input:

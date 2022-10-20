@@ -1,0 +1,539 @@
+#!/bin/sh
+
+# mkanalyses 2020_sn_islets_t1d
+# cd /lab/work/albanus/2020_sn_islets_t1d
+
+# Link/copy important data
+mkdir -p data/
+
+cp /lab/work/porchard/sn-muscle-project/bin/filter-bam-by-barcode.py scripts
+cp /lab/work/porchard/sn-muscle-project/bin/make_annot_custom.py scripts
+cp /lab/work/porchard/sn-muscle-project/bin/prep-aylward-ldsc.py scripts
+
+## ATAC-seq and RNA-seq bam files
+mkdir -p data/atac data/rna
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/atacseq/results/prune \
+data/atac
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/rnaseq/results/prune \
+data/rna
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/atacseq-HPAP059/results/\
+prune/* data/atac/prune/
+
+
+## RNA-seq counts and QC
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/rnaseq/results/starsolo \
+data/rna/
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/rnaseq-HPAP059/results/\
+starsolo/HPAP059-* data/rna/starsolo/
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/downstream/results/nucleus-qc \
+data/rna
+### CellBender counts from Henry
+for i in HPAP036 HPAP038 HPAP039 HPAP040 HPAP044 HPAP045 HPAP055 ICRH122
+do
+    indir="/lab/work/henrytay/cell_bender_chen_t1d/${i}/*"
+    indir="${indir}/cellbender-epochs_1000-learningrate_1pt0E-4_filtered_10x_mtx"
+    outdir="data/rna/cellbender/${i}"
+    mkdir -p ${outdir}
+    ln -s ${indir}/matrix.mtx.gz ${outdir}/
+    ln -s ${indir}/features.tsv.gz ${outdir}/
+    zcat ${indir}/barcodes.tsv.gz | sed 's/-[0-9]$//g' > ${outdir}/barcodes.tsv
+done
+
+## ATAC-seq counts
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/atacseq/results/gene-counts \
+data/atac
+ln -s /lab/work/porchard/2020-nih-islet-sn/work/atacseq-HPAP059/results/\
+gene-counts/HPAP059-* data/atac/gene-counts/
+
+
+## Vivek's CICERO comparison script
+cp /home/vivekrai/analyses/2019_sciATAC_new/control/\
+2019-07-08_Cicero-vs-HiC/cicero-hic-odds.R scripts/
+
+# Get protein-coding genes from GENCODE
+zcat /lab/data/reference/human/hg19/annot/gencode.v19.annotation.gtf.gz \
+    | grep "protein_coding" \
+    | grep -v "^chr\(X\|Y\|M\)" \
+    | sed 's/.*gene_name \"//g; s/\".*//g' \
+    | sort -u > data/hg19.protein_coding.autosomal.txt
+
+
+# Liger pre-process and first-pass clustering
+
+snakemake -pr -s src/liger.smk --configfile src/liger.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/liger_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 500 -s src/liger.smk --configfile src/liger.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/liger.${timestamp}.out"
+
+# Try different first-pass integration parameters
+launch_smk src/decontx_first_pass.smk
+
+# Liger integration with DecontX
+
+snakemake -pr -s src/liger.smk --configfile src/liger.yml -nq all_decontx
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/liger_integrate_decontx_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 500 -s src/liger.smk --configfile src/liger.yml \
+    all_decontx --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/liger_integrate_decontx.${timestamp}.out"
+
+
+
+# Process clusters
+
+snakemake -pr -s src/liger_clusters2bam.smk \
+    --configfile src/liger_clusters2bam.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/clusters_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 40 -s src/liger_clusters2bam.smk \
+    --configfile src/liger_clusters2bam.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out  --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/clusters.${timestamp}.out"
+
+
+## Integration with Seurat
+snakemake -pr -nq -s src/seurat.smk
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/seurat_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 500 -s src/seurat.smk \
+    --cluster-config src/seurat.cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out  --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/seurat.${timestamp}.out"
+
+
+## DA analyses with ArchR
+snakemake -pr -nq -s src/archr_da.smk --configfile src/archr_da.yml
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/archr_da_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 5 -s src/archr_da.smk --configfile src/archr_da.yml \
+    --cluster-config src/cluster.config.yaml \
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out  --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/archr_da.${timestamp}.out"
+
+
+## DA analyses with Tweedyverse
+snakemake -pr -s src/dar_tweedy.smk --configfile src/dar_tweedy.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/dar_tweedy.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 5 -s src/dar_tweedy.smk --configfile src/dar_tweedy.yml \
+    --cluster-config src/cluster.config.yaml \
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out  --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/dar_tweedy.${timestamp}.out"
+
+
+## DA analyses with DESeq2
+snakemake -pr -s src/dar_deseq2.smk --configfile src/dar_deseq2.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/dar_deseq2.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 15 -s src/dar_deseq2.smk --configfile src/dar_deseq2.yml \
+    --cluster-config src/cluster.config.yaml \
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out  --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/dar_deseq2.${timestamp}.out"
+
+
+## DA analyses from Henry
+snakemake -pr -s src/dar_henry.smk --configfile src/dar_henry.yml -nq
+
+
+# LDSC
+
+## Prep Chiou data
+snakemake -pr -s src/prep_chiou_2020.smk -nq  # biorxiv
+snakemake -pr -s src/prep_chiou_2021_nature.smk -nq  # Nature
+
+## Run LDSC
+conda_activate ldsc
+snakemake -pr -s src/ldsc.smk -nq --configfile src/ldsc.yml 
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/ldsc_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 40 -s src/ldsc.smk --configfile src/ldsc.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/ldsc.${timestamp}.out"
+
+# LDSC DA peaks
+conda_activate ldsc
+snakemake -pr -nq -s src/ldsc_da_peaks.smk --configfile src/ldsc_da_peaks.yml 
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/ldsc_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 200 -s src/ldsc_da_peaks.smk \
+    --configfile src/ldsc_da_peaks.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/ldsc.${timestamp}.out"
+
+## LDSC without filtering for HapMap SNPs
+conda_activate ldsc
+snakemake -pr -s src/ldsc_no_snp_filtering.smk \
+    --configfile src/ldsc.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/ldsc_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 40 -s src/ldsc.smk --configfile src/ldsc.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/ldsc.${timestamp}.out"
+
+
+# Get EUR MAFs from highest PPA T1D GWAS SNPs
+snakemake -qnpr -s src/get_mafs.smk
+
+
+# CICERO
+snakemake -pr -s src/cicero.smk --configfile src/cicero.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/cicero_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/cicero.smk --configfile src/cicero.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py --rerun-incomplete 2>&1 | \
+    tee log/cicero.${timestamp}.out"
+
+
+## Compare CICERO connections
+### All samples
+maindir="work/liger_all_samples_134-5/clusters/freeze_2021_01_11/cicero/output"
+conns="${maindir}/INS.txt"
+benchmarks=` ls /home/vivekrai/analyses/2019_sciATAC_new/control/\
+2019-07-08_Cicero-vs-HiC/data/*.txt`
+for f in ${benchmarks}
+do
+    id=`basename ${f} .txt`
+    outdir="${maindir}/INS_plots"
+    mkdir -p ${outdir}
+    echo "scripts/cicero-hic-odds.R ${conns} ${f} ${outdir}/${id}"
+done > compare.sh
+# drmrarray compare.sh
+
+### Conditions
+maindir="work/liger_all_samples_134-5/clusters/freeze_2021_01_11/cicero/\
+output_conditions"
+benchmarks=`ls /home/vivekrai/analyses/2019_sciATAC_new/control/\
+2019-07-08_Cicero-vs-HiC/data/*.txt`
+for f in ${benchmarks}
+do
+    for cond in `ls ${maindir} | sed 's/\..*//g' | uniq | grep -v "counts\|track\|plots"`
+    do
+        id=`basename ${f} .txt`
+        conns="${maindir}/${cond}.txt"
+        outdir="${maindir}/${cond}_plots"
+        mkdir -p ${outdir}
+        echo "scripts/cicero-hic-odds.R ${conns} ${f} ${outdir}/${id}"
+    done
+done > compare2.sh
+# drmrarray compare2.sh
+
+### Make browser tracks for existing Hi-C / ChIA-PET datasets
+Rscript scripts/make_hic_chiapet_tracks.R
+
+
+# LS-GKM
+snakemake -pr -s src/gkm-svm.smk --configfile src/gkm-svm.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/gkm-svm.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 16 -s src/gkm-svm.smk --configfile src/gkm-svm.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/gkm-svm.${timestamp}.out"
+
+
+
+# fGWAS
+## Old version (T1D only)
+snakemake -pr -s src/fgwas.smk --configfile src/fgwas.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/fgwas_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/fgwas.smk --configfile src/fgwas.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/fgwas.${timestamp}.out"
+
+## New version (multiple traits)
+snakemake -pr -s src/fgwas_traits.smk --configfile src/fgwas_traits.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/fgwas_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/fgwas_traits.smk --configfile src/fgwas_traits.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/fgwas.${timestamp}.out"
+
+# Garfield
+snakemake -pr -s src/garfield.smk --configfile src/garfield.yml  -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/garfield.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 30 -s src/garfield.smk --configfile src/garfield.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/garfield.${timestamp}.out"
+
+
+# Count CVB4 reads per cluster
+snakemake -pr -s src/cvb4.smk --configfile src/cvb4.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/cvb4_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/cvb4.smk --configfile src/cvb4.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/cvb4.${timestamp}.out"
+
+
+# Prioritize genes
+snakemake -pr -s src/prioritize_genes.smk \
+    --configfile src/prioritize_genes.yml -nq
+
+
+# Dig into SNPs of interest
+snakemake -pr -s src/motif_exploring.smk \
+    --configfile src/motif_exploring.yml -nq
+
+
+# Call haplotypes from ATAC/RNA data
+snakemake -pr -nq -s src/call_haplotypes.smk \
+    --configfile src/call_haplotypes.yml 
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/call_haplotypes_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/call_haplotypes.smk \
+    --configfile src/call_haplotypes.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/call_haplotypes.${timestamp}.out"
+
+snakemake -pr -nq -s src/call_haplotypes.smk \
+    --configfile src/call_haplotypes.yml all_mis
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/call_haplotypes_mis_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/call_haplotypes.smk \
+    --configfile src/call_haplotypes.yml \
+    all_mis \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/call_haplotypes_mis.${timestamp}.out"
+
+
+
+# Run QuASAR
+snakemake -pr -s src/quasar.smk --configfile src/quasar.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/quasar.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 6 -s src/quasar.smk --configfile src/quasar.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/quasar.${timestamp}.out"
+
+snakemake -pr -s src/quasar.smk --configfile src/quasar.yml per_cluster -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/quasar.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 6 -s src/quasar.smk --configfile src/quasar.yml \
+    per_cluster \
+    --cluster-config src/cluster.config.yaml \
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/quasar.${timestamp}.out"
+
+snakemake -pr -s src/quasar.smk --configfile src/quasar.yml \
+    allele_counts -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/quasar.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 15 -s src/quasar.smk --configfile src/quasar.yml \
+    allele_counts \
+    --cluster-config src/cluster.config.yaml \
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/quasar.${timestamp}.out"
+
+snakemake -pr -s src/quasar.smk --configfile src/quasar.yml \
+    all_compare_caqtls -nq
+
+
+
+# Run RASQUAL
+snakemake -pr -nq -s src/rasqual.smk --configfile src/rasqual.yml 
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/rasquals_${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 10 -s src/rasqual.smk --configfile src/rasqual.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable \
+    --constraint wolverine\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/rasqual.${timestamp}.out"
+
+# SuSiE
+snakemake -pr -s src/susie.smk --configfile src/susie.yml -nq
+
+# Locus heatmaps
+snakemake -pr -s src/locus_heatmap.smk --configfile src/locus_heatmap.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/locus_heatmap.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -pr -j 2 -s src/locus_heatmap.smk \
+    --configfile src/locus_heatmap.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable \
+    --constraint wolverine\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/locus_heatmap.${timestamp}.out"
+
+
+# BMO
+conda_activate snakemake
+snakemake -pr -s src/bmo.smk --configfile src/bmo.yml -nq --use-conda
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/bmo.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -c 60 -j 60 -s src/bmo.smk --configfile src/bmo.yml \
+    --cluster-config src/cluster.config.yaml --use-conda\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable \
+    --constraint wolverine\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/bmo.${timestamp}.out"
+
+ 
+# PyGenomeTracks
+conda activate pygenometracks
+snakemake -pr -s src/pygenometracks.smk --configfile src/pygenometracks.yml -nq
+
+
+# Manual allelic counts with genotypes
+cp /lab/data/nih/2021_07_02_T1D_genotypes/imputed_genotypes/\
+add_rs/genotypes-rsid-all.vcf.gz data/
+
+snakemake -pr -s src/allelic_imbalance.smk \
+    --configfile src/allelic_imbalance.yml -nq
+
+timestamp=$(date '+%Y_%m_%d_%H_%M_%S')
+logdir=".slurm/allelic_imbalance.${timestamp}"
+mkdir -p ${logdir} log
+echo "snakemake -kpr -j 3 -s src/allelic_imbalance.smk \
+    --configfile src/allelic_imbalance.yml \
+    --cluster-config src/cluster.config.yaml\
+    --cluster \"sbatch -t {cluster.time} -n {cluster.N} -c {cluster.threads} \
+    --mem={cluster.mem} -o ${logdir}/slurm-%j.out --parsable\" \
+    --cluster-status slurm_status.py 2>&1 | \
+    tee log/allelic_imbalance.${timestamp}.out"
+
+
+# Make extended regions for Shuibing & co
+ref="data/gatk_ref/hg19.fasta"
+cs="/lab/data/reference/human/hg19/hg19.chrom_sizes"
+snps="/lab/data/reference/human/hg19/annot/dbsnp150_variants/common_all_20170710.vcf.gz"
+cat data/experiments/regions_for_perturbation.bed | \
+    bedtools slop  -i stdin -g ${cs} -b 1500 |
+    grep -v "TOX" \
+    > data/experiments/regions_for_perturbation.plus1.5kb.bed 
+    
+bedtools getfasta -name -fi ${ref} \
+    -bed data/experiments/regions_for_perturbation.plus1.5kb.bed  \
+    > data/experiments/regions_for_perturbation.plus1.5kb.ref.fa
+
+## extract vcf for rs3783355 and rs55728265
+bcftools view -r 14:101308958,15:38856961 ${snps} | \
+    sed 's/ID=\([0-9XY]\)/ID=chr\1/g; s/^\([0-9]\)/chr\1/g' | \
+    bgzip > data/experiments/snps.vcf.gz
+tabix -p vcf data/experiments/snps.vcf.gz
+
+gatk FastaAlternateReferenceMaker \
+   -R ${ref} \
+   -O data/experiments/regions_for_perturbation.plus1.5kb.alt.fa \
+   -L data/experiments/regions_for_perturbation.plus1.5kb.bed \
+   -V data/experiments/snps.vcf.gz 
+
+# SNPs seqs for visualization
+cat data/experiments/snps_of_interest.bed | \
+    bedtools slop  -i stdin -g ${cs} -b 5 |
+    grep -v "TOX" | \
+    bedtools getfasta -name -fi ${ref} -bed stdin
+
+# snakemake -pr -s src/make_validation_regions.smk \
+#     --configfile src/make_validation_regions.yml -nq

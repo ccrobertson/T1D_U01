@@ -20,18 +20,18 @@ def get_samples_for_set(set):
 
 rule all:
     input:
-        expand("results/master_barcode_map_{set}.rds", set="3GEX_noNM3"),
-        expand("results/master_barcode_map_{set}.rds", set="3GEX_all"),
+        expand("results/master_barcode_map_{set}.rds", set="multiome_5GEX"),
+        #expand("results/master_barcode_map_{set}.rds", set="3GEX_all"),
 
 rule master_barcode_map:
     input:
         barcode_to_cell_type = "results/liger/{set}/barcode_to_cluster_to_cell_type.csv",
-        run_design = _data("nandini_run_design.tsv"),
+        run_design = _data("batch_design.tsv"),
         demuxlet_files = lambda wildcards: expand("results/demultiplex/demuxlet-unfiltered/{sample}/demuxlet.best", sample = get_samples_for_set(wildcards.set))
     output:
-        "results/master_barcode_map_{set}.rds"
+        "results/master_barcode_maps/master_barcode_map_{set}.rds"
     params:
-        prefix = "results/master_barcode_map_{set}",
+        prefix = "results/master_barcode_maps/master_barcode_map_{set}",
         PSNG_threshold = 0.8,
     shell:
         """

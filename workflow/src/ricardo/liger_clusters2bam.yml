@@ -1,0 +1,98 @@
+summit_ext: 150
+
+clusters:
+    - "GCG"
+    - "INS"
+    - "KRT19"
+    - "PDGFRA"
+    - "PPY"
+    - "PRSS1"
+    - "RGS5"
+    - "SDS"
+    - "SST"
+    - "VWF"
+
+samples: 
+    - HPAP036 
+    - HPAP038
+    - HPAP039
+    - HPAP040
+    - HPAP044
+    - HPAP045
+    - HPAP055
+    - ICRH122
+    - HPAP059-mock
+    - HPAP059-Cytokine
+    - HPAP059-CVB4
+    - ICRH134-Mock
+    - ICRH134-Cyto
+    - ICRH134-CVB4
+    - ICRH135-Mock
+    - ICRH135-Cyto
+    - ICRH135-CVB4
+
+samples_healthy:
+    - HPAP036 
+    - HPAP039
+    - HPAP040
+    - HPAP044
+    - ICRH122
+
+samples_healthymock:
+    - HPAP036 
+    - HPAP039
+    - HPAP040
+    - HPAP044
+    - ICRH122
+    - HPAP059-mock
+    - ICRH134-Mock
+    - ICRH135-Mock
+
+samples_pret1d:
+    - HPAP038
+    - HPAP045
+
+samples_t1d:
+    - HPAP055
+
+samples_aab:
+    - HPAP038
+    - HPAP045
+    - HPAP055
+
+samples_mock:
+    - HPAP059-mock
+    - ICRH134-Mock
+    - ICRH135-Mock
+
+samples_cytokines:
+    - HPAP059-Cytokine
+    - ICRH134-Cyto
+    - ICRH135-Cyto
+
+samples_cvb4:
+    - HPAP059-CVB4
+    - ICRH134-CVB4
+    - ICRH135-CVB4
+
+
+atac_bam_dir: "data/atac/prune"
+ctcf_cohesin: "/lab/work/albanus/ctcf_multiple_samples/bnMapper/\
+               triple_conserved_CTCF_known2_ctcf_rad21_hg19.bed"
+tss_file: "/lab/data/reference/human/hg19/annot/\
+           hg19.tss.refseq.housekeeping.ortho.bed"
+genome_size: "/lab/data/reference/human/hg19/hg19.chrom_sizes"
+blacklists:
+    - "/lab/data/reference/human/hg19/annot/\
+        wgEncodeDukeMapabilityRegionsExcludable.bed.gz"
+    - "/lab/data/reference/human/hg19/annot/\
+        wgEncodeDacMapabilityConsensusExcludable.bed.gz"
+
+results: "work/liger_all_samples_134-5"
+# liger_dir: "work/liger_all_samples_134-5/custom_rds"
+liger_obj: "freeze_2021_01_11"
+# n_clusters: 9
+beta_cluster: "INS"
+
+min_n: 2  # minimum number of samples with peak
+

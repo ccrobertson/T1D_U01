@@ -1,0 +1,1404 @@
+---
+title: "LIGER integration QC"
+output:
+  html_document:
+    theme: readable
+    df_print: paged
+    code_folding: hide
+    toc: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+options(stringsAsFactors = F)
+seed <- 87532163
+
+library(knitr)
+library(glue)
+library(ggplot2)
+library(RColorBrewer)
+library(Matrix)
+
+library(liger)
+library(dplyr)
+library(tidyr)
+library(scales)
+
+library(ggpointdensity)
+library(ggrepel)
+
+source("~/scripts/R_rainclouds.R")
+
+knitr::opts_knit$set(root.dir = "/lab/work/albanus/2020_nih_islets_sn_t1d")
+knitr::opts_chunk$set(fig.width = 4, fig.height = 4, fig.show = "hold")
+
+theme_set(theme_bw(base_size = 12))
+```
+
+```{r}
+# Load QC data
+samples <- c("HPAP036", "HPAP038", "HPAP039", "HPAP040",
+             "HPAP044", "HPAP045", "HPAP055", "ICRH122",
+             "HPAP059-mock", "HPAP059-CVB4", "HPAP059-Cytokine",
+             "ICRH134-Mock", "ICRH134-Cyto", "ICRH134-CVB4",
+             "ICRH135-Mock", "ICRH135-Cyto", "ICRH135-CVB4")
+
+indir <- "work/liger_all_samples_134-5"
+rna_dir <- file.path("/lab/work/albanus/2020_nih_islets_sn_t1d_processing",
+                     "downstream/downstream/nucleus-qc")
+ribo_dir <- "data/rna/ribosomal_qc"
+
+sample_md <- read.csv("data/sample_metadata.csv", header = T)
+
+rna_qc <- samples %>% 
+  lapply(function(x){
+    qc_res <- file.path(rna_dir, sprintf("%s-rna.txt", x)) %>% 
+      read.table(header = T, fill = T) %>% 
+      mutate(sample = x)
+  }) %>% 
+  bind_rows() %>% 
+  mutate(barcode = paste(sample, "rna", barcode, sep = "_"))
+
+# ribo_qc <- samples %>% 
+#   lapply(function(x){
+#     qc_res <- file.path(ribo_dir, sprintf("%s.txt", x)) %>% 
+#       read.table(header = T, fill = T) %>% 
+#       mutate(sample = x) %>%
+#       rename("number_umis_from_ribo" = number_umis)
+#   }) %>% 
+#   bind_rows() %>% 76
+#   mutate(barcode = paste(sample, "rna", barcode, sep = "_")) %>% 
+#   select(-sample)
+# 
+# rna_qc <- rna_qc %>%
+#     left_join(ribo_qc, by = "barcode")
+
+atac_qc <- file.path("/lab/work/albanus/2020_nih_islets_sn_t1d_processing",
+                     "downstream/downstream/nucleus-qc/metrics.txt") %>% 
+  read.table(col.names = c("barcode", "metric", "value")) %>% 
+  mutate(value = case_when(value == "None" ~ "0", T ~ value)) %>%  # deal gracefully with missing values
+  mutate(barcode = gsub("(HPAP059|ICRH13[45])-", "\\1_", barcode)) %>%  # deal with perturbations
+  mutate(value = as.numeric(value)) %>% 
+  spread(metric, value) %>% 
+  mutate(barcode = gsub("-atac", "", barcode)) %>% 
+  separate(barcode, c("sample", "barcode"), "-") %>% 
+  mutate(sample = gsub("(HPAP059|ICRH13[45])_", "\\1-", sample)) %>%  # deal with perturbations
+  mutate(barcode = paste(sample, "atac", barcode, sep = "_"))
+```
+
+```{r}
+# Load DecontX data
+dctx <- samples %>% 
+  lapply(function(i){
+    x <- readRDS(
+      file.path(indir, i, "decontx", 
+                "rna_processed.decontX_full.rds")
+    )
+    data.frame(barcode = colnames(x$decontXcounts), 
+               contamination = x$contamination,
+               sample = i)
+  }) %>% 
+  bind_rows()
+
+# Load ArchR doublet scores
+archr <- read.table("work/archr_all_samples_134-5/doublets.txt", 
+                    header = T, comment.char = "") %>% 
+  mutate(barcode = gsub("#", "_atac_", barcode)) %>% 
+  rename(doublet_atac = doublet)
+```
+
+<!-- ```{r} -->
+<!-- # Load first-pass clustering data -->
+<!-- first_pass_clusters <- read.table( -->
+<!--   file.path("work/liger_all_samples_134-5/custom_rds", -->
+<!--             "liger__k50__l15__knn20__res1.first-pass_ref038.ins_rescued.for_decontx.txt"), -->
+<!--   header = T -->
+<!-- ) %>%  -->
+<!--   rename(first_pass_cluster = Cluster) -->
+<!-- ``` -->
+
+
+```{r}
+# Load clustering data from DecontX
+k <- 50
+liger_specs <- glue("liger__k{k}__l15__knn20__res1")
+
+ligerex <- file.path(
+  indir, sprintf("liger_integration/decontx_seurat_clusters/both_modalities/%s.rds", 
+                 liger_specs)
+) %>%
+  readRDS()
+```
+
+```{r, fig.width=6, fig.height=6}
+plotGeneLoadings(ligerex)
+```
+
+```{r, fig.width=6, fig.height=6}
+plotGeneLoadings(ligerex, dataset1 = "HPAP036_atac", "HPAP038_atac")
+```
+
+```{r, fig.width=10}
+get_spec <- function(x, y){
+  calcDatasetSpecificity(ligerex, x, y, do.plot = F)[[3]]
+}
+
+specs <- lapply(samples, function(x){
+  others <- samples[samples != x]
+  lapply(others, function(y){
+    rna <- get_spec(paste0(x, "_rna"), paste0(y, "_rna"))
+    atacrna <- get_spec(paste0(x, "_atac"), paste0(y, "_rna"))
+    rnatac <- get_spec(paste0(x, "_rna"), paste0(y, "_atac"))
+    atac <- get_spec(paste0(x, "_atac"), paste0(y, "_atac"))
+    data.frame(x = x, y = y, loading_factor = 1:length(rna),
+               rna = rna, rna_atac = rnatac, atac_rna = atacrna, atac = atac)
+  }) %>%
+    bind_rows()
+}) %>%
+  bind_rows() %>%
+  gather("type", "specificity", rna:atac) %>%
+  mutate(loading_factor = factor(loading_factor, levels = 1:k, ordered = T))
+
+specs  %>%
+  ggplot(aes(x = loading_factor, y = specificity, color = type)) +
+  geom_point() +
+  geom_hline(yintercept = 0, lty = "dashed")
+
+specs  %>%
+  ggplot(aes(x = loading_factor, y = specificity, color = type)) +
+  geom_point() +
+  geom_hline(yintercept = 0, lty = "dashed") +
+  coord_cartesian(ylim = c(-10,10))
+
+specs  %>%
+  filter(type == "atac") %>% 
+  ggplot(aes(x = loading_factor, y = specificity, color = type)) +
+  geom_point() +
+  geom_hline(yintercept = 0, lty = "dashed")
+
+specs  %>%
+  filter(type == "atac") %>% 
+  ggplot(aes(x = loading_factor, y = specificity, color = type)) +
+  geom_point() +
+  geom_hline(yintercept = 0, lty = "dashed") +
+  coord_cartesian(ylim = c(-2.5,2.5))
+
+specs  %>%
+  filter(type == "rna_atac") %>% 
+  ggplot(aes(x = loading_factor, y = specificity, color = type)) +
+  geom_point() +
+  geom_hline(yintercept = 0, lty = "dashed")
+
+specs  %>%
+  filter(type == "atac_rna") %>% 
+  ggplot(aes(x = loading_factor, y = specificity, color = type)) +
+  geom_point() +
+  geom_hline(yintercept = 0, lty = "dashed")
+```
+
+```{r}
+problematic_lfs <- c(
+  45, # RP
+  1,2,4,5,8,12,15,17,20,21,23,25,28,31,35,36,37,38,39,40,41,42,45,47,48,49,
+  44,27
+)
+```
+
+
+```{r}
+factors_to_keep <- c(1:k)
+# problematic_lfs2 <- c(2, 3, 9)
+factors_to_keep <- factors_to_keep[!c(1:k) %in% problematic_lfs]
+
+ligerex2 <- suppressWarnings(
+  quantile_norm(ligerex, dims.use = factors_to_keep, knn_k = 20,
+                ref_dataset = "HPAP038_rna")
+                # ref_dataset = "HPAP038_atac")
+)
+
+ligerex2 <- runUMAP(ligerex2, dims.use = factors_to_keep,
+                    n_neighbors = 20)
+
+# ligerex2 <- louvainCluster(ligerex2, resolution = .25)
+
+
+liger_specs_recluster <- paste0(liger_specs, "__dctx_rmlfs")
+liger_outfile <- file.path(indir, "custom_rds",
+                           sprintf("%s.rds", liger_specs_recluster))
+# saveRDS(ligerex2, liger_outfile)
+# ligerex2 <- readRDS(liger_outfile)
+```
+
+```{r, fig.width=8, fig.height=3.5}
+df2 <- liger::plotByDatasetAndCluster(ligerex2, return.plots = T) 
+df2 <- df2[[1]]$data %>% 
+  tibble::rownames_to_column("barcode") %>% 
+  left_join(atac_qc, by = "barcode") %>% 
+  select(-sample) %>% 
+  left_join(rna_qc, by = "barcode") %>% 
+  select(-sample) %>% 
+  mutate(sample = gsub("_.*", "", Dataset)) %>% 
+  left_join(sample_md, by = "sample") %>% 
+  left_join(dctx, by = c("sample", "barcode")) %>%
+  left_join(archr, by = c("barcode")) %>%
+  # left_join(first_pass_clusters, by = c("barcode")) %>%
+  mutate(modality = case_when(grepl("atac", barcode) ~ "ATAC", T ~ "RNA")) %>% 
+  rename(umap1 = tsne1, umap2 = tsne2) %>% 
+  mutate(Cluster = as.numeric(as.character(Cluster))) %>% 
+  mutate(Cluster = factor(Cluster, levels = 0:max(Cluster), ordered = T))
+
+clus_coords <- df2 %>% 
+  group_by(Cluster) %>% 
+  summarise(umap1 = median(umap1), umap2 = median(umap2))
+
+df2 %>% 
+  ggplot(aes(x = umap1, y = umap2, color = Cluster)) +
+  geom_point(size = .3, alpha = .2) + 
+  facet_wrap(~ modality) +
+  guides(color = guide_legend(ncol = 2, override.aes = list(size = 2, alpha = 1)))
+```
+
+```{r, fig.width=4.5, fig.height=3.5}
+df2 %>% 
+  ggplot(aes(x = umap1, y = umap2, color = modality)) +
+  geom_point(size = .3, alpha = .2) + 
+  guides(color = guide_legend(ncol = 1, override.aes = list(size = 2, alpha = 1)))
+```
+
+
+```{r}
+table(df2$Cluster, df2$modality)
+
+cluster_compositions <- table(df2$Cluster, df2$modality) %>% 
+  as.data.frame() %>% 
+  spread(Var2, Freq) %>% 
+  mutate(diff = (ATAC - RNA) / (ATAC + RNA)) %>% 
+  arrange(desc(diff)) %>% 
+  mutate(type = case_when(diff > 0.8 ~ "80%+ ATAC",
+                          diff < -0.8 ~ "80%+ RNA",
+                          T ~ "<80% either modality")) %>% 
+  rename(Cluster = Var1) %>% 
+  mutate(Cluster = as.character(Cluster))
+
+cluster_compositions
+```
+
+
+```{r, fig.width=6}
+df2 %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(aes(color = Cluster), size = .3, alpha = .3) +
+  geom_label_repel(aes(label = Cluster), data = clus_coords) +
+  guides(color = guide_legend(ncol = 2, override.aes = list(size = 2, alpha = 1)))
+```
+
+## Marker genes
+```{r, fig.width=8, fig.height=3}
+plot_gene <- function(ligerex2, gene){
+  gene_vals <- getGeneValues(ligerex2@raw.data, gene, log2scale = F) %>% 
+    as.data.frame() %>% 
+    tibble::rownames_to_column("barcode") %>% 
+    rename("gene_val" = ".") %>% 
+    mutate(gene_val = log2(round(gene_val, 0)) + 1)
+
+  p1 <- df2 %>% 
+  filter(modality == "RNA") %>% 
+  left_join(gene_vals, by = "barcode") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = gene_val)) +
+  geom_point(size = .3) +
+  facet_wrap(~ modality) +
+  scale_color_viridis_c() +
+  labs(color = gene)
+
+  p2 <- df2 %>% 
+  filter(modality == "ATAC") %>% 
+  left_join(gene_vals, by = "barcode") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = gene_val)) +
+  geom_point(size = .3) +
+  facet_wrap(~ modality) +
+  scale_color_viridis_c() +
+  labs(color = gene)
+
+  plot_grid(p1, p2, ncol = 2)
+}
+
+gene_list <- c("INS", "GCG", "PPY", "SST",
+               "PRSS1", "CPA1", "KRT19", 
+               "SPARC", "PDGFRA", "RGS5", "VWF", 
+               "SDS", "TPSAB1")
+# gene_list <- c("SDS")
+
+for(gene in gene_list){
+  print(plot_gene(ligerex2, gene))
+  rm(gene)
+}
+```
+
+```{r, fig.width=8, fig.height=6}
+plot_gene <- function(ligerex2, gene){
+  gene_vals <- getGeneValues(ligerex2@raw.data, gene, log2scale = F) %>% 
+    as.data.frame() %>% 
+    tibble::rownames_to_column("barcode") %>% 
+    rename("gene_val" = ".") %>% 
+    mutate(gene_val = log2(round(gene_val, 0)) + 1)
+  
+  gene_vals2 <- getGeneValues(ligerex2@raw.data, gene, log2scale = F) %>% 
+    as.data.frame() %>% 
+    tibble::rownames_to_column("barcode") %>% 
+    rename("gene_val" = ".") %>% 
+    left_join(df2, by = "barcode") %>% 
+    mutate(gene_val = log2(round(gene_val, 0) + 1))
+
+  p1 <- df2 %>% 
+  filter(modality == "RNA") %>% 
+  left_join(gene_vals, by = "barcode") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = gene_val)) +
+  geom_point(size = .3) +
+  facet_wrap(~ modality) +
+  scale_color_viridis_c() +
+  labs(color = gene)
+
+  p2 <- df2 %>% 
+  filter(modality == "ATAC") %>% 
+  left_join(gene_vals, by = "barcode") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = gene_val)) +
+  geom_point(size = .3) +
+  facet_wrap(~ modality) +
+  scale_color_viridis_c() +
+  labs(color = gene)
+  
+  p3 <- gene_vals2 %>% 
+    filter(!is.na(Cluster)) %>% 
+    ggplot(aes(x = Cluster, y = gene_val + 1, group = Cluster)) +
+    geom_point(position = position_jitter(width = .15), size = .25, alpha = .05) +
+    geom_boxplot(aes(x = as.numeric(Cluster) + 0.25), na.rm = T,
+                 outlier.shape = NA, alpha = 1, width = .2, color = "black") +
+    facet_wrap(~ modality, scales = "free_y", ncol = 1) +
+    labs(x = "Cluster", y = gene, title = gene)
+
+  plot_grid(p1, p3, p2, ncol = 2, rel_widths = c(1,1.3))
+}
+
+gene_list <- c("INS", "GCG", "PPY", "SST",
+               "PRSS1", "CPA1", "KRT19", 
+               "SPARC", "PDGFRA", "RGS5", "VWF", 
+               "SDS", "TPSAB1")
+# gene_list <- c("SDS")
+
+for(gene in gene_list){
+  print(plot_gene(ligerex2, gene))
+  rm(gene)
+}
+```
+
+## QC metrics
+```{r}
+hnorm <- ligerex2@H.norm %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column("barcode") %>% 
+  gather("lf", "value", -barcode) %>% 
+  group_by(barcode) %>% 
+  filter(value == max(value))
+
+hnorm <- hnorm %>% 
+  left_join(df2, by = "barcode") %>% 
+  mutate(issue = lf %in% paste0("V", problematic_lfs))
+```
+
+```{r, fig.width=8, fig.height=8}
+hnorm %>% 
+  mutate(lf = gsub("V", "", lf)) %>% 
+  mutate(lf = factor(lf, levels = 0:max(as.numeric(lf)))) %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(size = .3, alpha = .2) + 
+  facet_wrap(~ lf)
+
+hnorm %>% 
+  mutate(lf = gsub("V", "", lf)) %>% 
+  mutate(lf = factor(lf, levels = 0:max(as.numeric(lf)))) %>% 
+  ggplot(aes(x = umap1, y = umap2, color = issue)) +
+  geom_point(size = .3, alpha = .2) + 
+  facet_wrap(~ lf) + 
+  scale_color_manual(values = c("black", "red"))
+```
+
+
+```{r, fig.width=10, fig.height=5}
+hnorm_hm <-ligerex2@H.norm %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column("barcode") %>% 
+  gather("lf", "value", -barcode) %>% 
+  left_join(df2, by = "barcode") %>% 
+  group_by(Cluster, lf) %>%
+  summarise(lf_total = sum(value),
+            n = n()) %>% 
+  mutate(norm = lf_total / n) %>% 
+  mutate(lf = as.numeric(gsub("V", "", lf))) %>% 
+  mutate(lf = factor(lf, levels = 1:max(lf)))
+
+hnorm_dm <- hnorm_hm %>% 
+  select(Cluster, lf, norm) %>% 
+  spread(Cluster, norm) %>% 
+  tibble::column_to_rownames("lf") %>% 
+  replace(is.na(.), 0) %>% 
+  data.matrix()
+
+clus_ord <- hclust(dist(t(hnorm_dm)))
+plot(clus_ord)
+clus_ord <- clus_ord$labels[clus_ord$order]
+lf_ord <- hclust(dist(hnorm_dm))
+plot(lf_ord)
+lf_ord <- lf_ord$labels[lf_ord$order]
+
+hnorm_hm %>% 
+  ggplot(aes(x = lf, y = Cluster, fill = norm)) +
+  geom_tile() +
+  scale_fill_distiller(
+    palette = "Reds", 
+    direction = 1
+  )
+
+hnorm_hm %>% 
+  mutate(lf = factor(lf, levels = lf_ord, ordered = T)) %>% 
+  mutate(Cluster = factor(Cluster, levels = clus_ord, ordered = T)) %>%
+  ggplot(aes(x = lf, y = Cluster, fill = norm)) +
+  geom_tile() +
+  scale_fill_distiller(
+    palette = "Reds", 
+    direction = 1
+  )
+```
+
+```{r, fig.width=10, fig.height=5}
+hnorm_hm %>% 
+  left_join(cluster_compositions, by = "Cluster") %>% 
+  ggplot(aes(x = lf, y = Cluster, fill = norm)) +
+  geom_tile() +
+  facet_wrap(~ type, ncol = 1, scales = "free_y") +
+  scale_fill_distiller(
+    palette = "Reds", 
+    direction = 1
+  )
+  
+```
+
+
+```{r, fig.width=6, fig.height=6}
+plotGeneLoadings(ligerex2, factor.share.thresh = 1e6)
+```
+
+
+
+```{r, fig.width=15, fig.height=3}
+df2 %>% 
+  ggplot(aes(x = umap1, y = umap2, color = sample)) +
+  geom_point(size = .3, alpha = .2) + 
+  facet_grid(modality ~ sample) +
+  guides(color = F)
+```
+
+```{r, fig.width=8, fig.height=6}
+df2 %>% 
+  mutate(Cluster = as.numeric(as.character(Cluster))) %>% 
+  mutate(Cluster = factor(Cluster, levels = 0:max(Cluster), ordered = T)) %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(size = .3, alpha = .01) + 
+  facet_wrap(~ Cluster) +
+  guides(color = F)
+```
+
+
+```{r, fig.width=6, fig.height=4}
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = hqaa)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c(trans = "log10") +
+  ggtitle("ATAC - number of HQAA")
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = tss_enrichment)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  ggtitle("ATAC - TSS enrichment")
+
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = number_umis)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c(trans = "log10") +
+  ggtitle("RNA - number of UMIs")
+
+df2 %>%
+  filter(modality == "RNA") %>%
+  ggplot(aes(x = umap1, y = umap2, color = fraction_ribosomal)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  ggtitle("RNA - fraction ribossomal")
+
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = contamination)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  ggtitle("RNA - DecontX contamination")
+```
+
+```{r, fig.width=6, fig.height=4}
+contamination_max <- 0.5
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  filter(contamination > contamination_max) %>% 
+  ggplot(aes(x = umap1, y = umap2, color = contamination)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  ggtitle("RNA - DecontX contamination")
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  filter(contamination > contamination_max) %>% 
+  count(sample, Cluster) %>% 
+  spread(Cluster, n)
+```
+
+
+```{r, fig.width=8, fig.height=4}
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  mutate(sample = factor(sample)) %>% 
+  ggplot(aes(x = sample, y = contamination, group = sample)) +
+  geom_hline(yintercept = contamination_max, color = "red", lty = "dashed") +
+  geom_flat_violin(position = position_nudge(x = .25, y = 0),
+                   adjust = 0.5, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .10, height = 0), 
+             size = .25, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(sample) + 0.15),
+               outlier.shape = NA, alpha = 1, width = .1, color = "black") +
+  scale_y_continuous(limits = c(-0.08,1.08), breaks = seq(0,1,.25)) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  group_by(sample) %>% 
+  summarise(n = n(), high_contamination = sum(contamination > contamination_max)) %>% 
+  mutate(frac = high_contamination / n) %>% 
+  arrange(desc(frac))
+```
+
+
+```{r, fig.width=6, fig.height=4}
+# Low %MT barcodes from QC
+low_mt <- rna_qc %>% 
+  filter(number_umis > 1000, fraction_mitochondrial < .2) %>%
+  mutate(low_mt = case_when(
+    !sample %in% c("HPAP044", "HPAP038") & 
+      fraction_mitochondrial < .007 ~ T,
+    sample == "HPAP038" & fraction_mitochondrial < .015 ~ T,
+    sample == "HPAP044" & fraction_mitochondrial < .008 ~ T,
+    T ~ F
+  )) %>% 
+  filter(low_mt) %>% 
+  pull(barcode)
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = fraction_mitochondrial)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  ggtitle("RNA - fraction MT")
+
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  mutate(low_mt = barcode %in% low_mt) %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(size = .3, alpha = .1) +
+  facet_wrap(~ low_mt) +
+  labs(title = "Low MT barcodes", color = "Low MT")
+
+df2 %>% 
+  ungroup() %>% 
+  filter(modality == "RNA") %>% 
+  mutate(low_mt_bc = barcode %in% low_mt) %>% 
+  group_by(Cluster) %>% 
+  summarise(frac_low_mt = sum(low_mt_bc) / n())
+
+rm(low_mt)
+```
+
+
+
+```{r, fig.width=6, fig.height=4}
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  filter(!is.na(doublet_atac)) %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(size = .3, alpha = .1) +
+  facet_wrap(~ doublet_atac) +
+  labs(title = "ATAC -  ArchR doublet")
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = doubletEnrichment)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  labs(title = "ATAC - ArchR doublet enrichment")
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  filter(doublet_atac) %>% 
+  ggplot(aes(x = umap1, y = umap2, color = doubletEnrichment)) +
+  geom_point(size = .3) +
+  scale_color_viridis_c() +
+  labs(title = "ATAC - ArchR doublet enrichment")
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  group_by(Cluster) %>% 
+  summarise(n = n(),
+            doublet = sum(doublet_atac, na.rm = T)) %>% 
+  mutate(doublet_f = round(doublet / n, 4))
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  group_by(sample, Cluster) %>% 
+  summarise(n = n(),
+            doublet = sum(doublet_atac, na.rm = T)) %>% 
+  mutate(doublet_f = round(doublet / n, 4)) %>% 
+  select(-n, -doublet) %>% 
+  spread(Cluster, doublet_f)
+```
+
+```{r, fig.width=6, fig.height=4}
+doublet_max <- 10
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  mutate(sample = factor(sample)) %>% 
+  ggplot(aes(x = sample, y = doubletEnrichment, group = sample, color = doublet_atac)) +
+  # geom_hline(yintercept = doublet_max, color = "red", lty = "dashed") +
+  geom_flat_violin(position = position_nudge(x = .25, y = 0),
+                   adjust = 0.5, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .10, height = 0), 
+             size = .25, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(sample) + 0.15),
+               outlier.shape = NA, alpha = 1, width = .1, color = "black") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+df2 %>% 
+  filter(modality == "ATAC", doubletEnrichment > doublet_max) %>%
+  count(sample, Cluster) %>% 
+  spread(Cluster, n)
+```
+
+
+```{r, fig.width=4, fig.height=15}
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  filter(!is.na(doublet_atac)) %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(size = .3, alpha = .1) +
+  facet_grid(sample ~ doublet_atac) +
+  labs(title = "ATAC -  ArchR doublet")
+
+df2 %>% 
+  filter(modality == "ATAC") %>% 
+  group_by(sample) %>% 
+  summarise(n = n(), doublet = sum(doublet_atac, na.rm = T)) %>% 
+  mutate(frac = doublet / n) %>% 
+  arrange(desc(frac))
+```
+
+
+```{r, fig.width=8}
+df2 %>% 
+  select(barcode, Cluster, hqaa, number_umis) %>% 
+  gather("key", "value", hqaa, number_umis) %>% 
+  mutate(Cluster = factor(Cluster)) %>% 
+  ggplot(aes(x = Cluster, y = value + 1, group = Cluster)) +
+  # geom_boxplot(na.rm = T) +
+  geom_flat_violin(position = position_nudge(x = .25, y = 0), na.rm = T,
+                         adjust = 0.8, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .15), size = .25, 
+              na.rm = T, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(Cluster) + 0.25), na.rm = T,
+                 outlier.shape = NA, alpha = 1, width = .2) +
+  facet_wrap(~ key, scales = "free_y") +
+  scale_y_continuous(trans = "log10", labels = comma) +
+  labs(y = "Counts")
+
+df2 %>% 
+  select(barcode, Cluster, total_reads.x, total_reads.y) %>% 
+  rename(ATAC = total_reads.x, RNA = total_reads.y) %>% 
+  gather("key", "n_reads", ATAC, RNA) %>% 
+  mutate(Cluster = factor(Cluster)) %>% 
+  ggplot(aes(x = Cluster, y = n_reads + 1, group = Cluster)) +
+  # geom_boxplot(na.rm = T) +
+  geom_flat_violin(position = position_nudge(x = .25, y = 0), na.rm = T,
+                         adjust = 0.8, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .15), size = .25, 
+              na.rm = T, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(Cluster) + 0.25), na.rm = T,
+                 outlier.shape = NA, alpha = 1, width = .2) +
+  facet_wrap(~ key, scales = "free_y") +
+  scale_y_continuous(trans = "log10", labels = comma) +
+  labs(y = "Total reads")
+```
+
+
+```{r}
+df2 %>% 
+  mutate(Cluster = factor(Cluster)) %>% 
+  ggplot(aes(x = Cluster, y = max_fraction_reads_from_single_autosome, group = Cluster)) +
+  # geom_boxplot(na.rm = T)
+  geom_flat_violin(position = position_nudge(x = .25, y = 0), na.rm = T,
+                         adjust = 0.8, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .15), size = .25, 
+              na.rm = T, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(Cluster) + 0.25), na.rm = T,
+                 outlier.shape = NA, alpha = 1, width = .2)
+
+df2 %>% 
+  mutate(Cluster = factor(Cluster)) %>% 
+  ggplot(aes(x = Cluster, y = tss_enrichment, group = Cluster)) +
+  # geom_boxplot(na.rm = T)
+  geom_flat_violin(position = position_nudge(x = .25, y = 0), na.rm = T,
+                         adjust = 0.8, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .15), size = .25, 
+              na.rm = T, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(Cluster) + 0.25), na.rm = T,
+                 outlier.shape = NA, alpha = 1, width = .2)
+
+df2 %>% 
+  mutate(Cluster = factor(Cluster)) %>% 
+  ggplot(aes(x = Cluster, y = fraction_mitochondrial, group = Cluster)) +
+  # geom_boxplot(na.rm = T)
+  geom_flat_violin(position = position_nudge(x = .25, y = 0), na.rm = T,
+                         adjust = 0.8, trim = FALSE, alpha = .5) +
+  geom_point(position = position_jitter(width = .15), size = .25, 
+              na.rm = T, alpha = .05) +
+  geom_boxplot(aes(x = as.numeric(Cluster) + 0.25), na.rm = T,
+                 outlier.shape = NA, alpha = 1, width = .2)
+```
+
+
+```{r, fig.width=8}
+cell_counts <- df2 %>% 
+  # filter(Cluster %in% c(3, 15)) %>% 
+  select(barcode:Cluster, condition:modality) %>% 
+  # mutate(Cluster = as.numeric(as.character(Cluster))) %>% 
+  mutate(Dataset = gsub("_.*", "", Dataset)) %>% 
+  group_by(Dataset, Cluster, condition, detailedCond, modality) %>% 
+  summarise(n = n()) %>% 
+  group_by(Cluster, modality) %>% 
+  mutate(frac_cluster = n / sum(n)) %>% 
+  ungroup() %>% 
+  group_by(Dataset, modality) %>% 
+  mutate(frac_dataset = n / sum(n)) %>% 
+  ungroup()
+
+cell_counts %>% 
+  # filter(Cluster %in% c(3, 15)) %>% 
+  ggplot(aes(x = Cluster, y = n, fill = Dataset)) +
+  geom_col(position = "stack", color = "black") +
+  scale_fill_viridis_d() +
+  # scale_x_continuous(breaks = seq(0,20,2)) +
+  facet_wrap(~ modality, scales = "free_y") +
+  labs(x = "Cluster", y = "Number of cells")
+
+cell_counts %>% 
+  # filter(Cluster %in% c(3, 15)) %>% 
+  ggplot(aes(x = Cluster, y = frac_dataset, fill = Dataset)) +
+  geom_col(position = "stack", color = "black") +
+  scale_fill_viridis_d() +
+  # scale_x_continuous(breaks = seq(0,20,2)) +
+  facet_wrap(~ modality, scales = "free_y") +
+  labs(x = "Cluster", y = "Fraction of dataset")
+
+cell_counts %>% 
+  # filter(Cluster %in% c(3, 15)) %>% 
+  ggplot(aes(x = Cluster, y = frac_cluster, fill = Dataset)) +
+  geom_col(position = "stack", color = "black") +
+  scale_fill_viridis_d() +
+  # scale_x_continuous(breaks = seq(0,20,2)) +
+  facet_wrap(~ modality, scales = "free_y") +
+  labs(x = "Cluster", y = "Fraction of cluster")
+  
+  
+```
+
+```{r, fig.width=6, fig.height=6}
+cell_counts %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = Dataset, y = frac_dataset, fill = condition)) +
+  geom_col(position = "dodge", color = "black") +
+  scale_fill_viridis_d() +
+  facet_wrap(~ Cluster) +
+  labs(title = "RNA") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+  
+  cell_counts %>% 
+  filter(modality == "ATAC") %>% 
+  ggplot(aes(x = Dataset, y = frac_dataset, fill = condition)) +
+  geom_col(position = "dodge", color = "black") +
+  scale_fill_viridis_d() +
+  facet_wrap(~ Cluster) +
+  labs(title = "ATAC") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+```
+
+```{r, fig.width=8, fig.height=6}
+cell_counts %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = Dataset, y = frac_cluster, fill = condition)) +
+  geom_col(position = "dodge", color = "black") +
+  scale_fill_viridis_d() +
+  facet_wrap(~ Cluster, scales = "free_y") +
+  labs(title = "RNA") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+  
+cell_counts %>% 
+  filter(modality == "ATAC") %>% 
+  ggplot(aes(x = Dataset, y = frac_cluster, fill = condition)) +
+  geom_col(position = "dodge", color = "black") +
+  scale_fill_viridis_d() +
+  facet_wrap(~ Cluster, scales = "free_y") +
+  labs(title = "ATAC") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+```
+
+```{r, fig.width=5, fig.height=3.5}
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = factor(first_pass_cluster))) +
+  geom_point(size = .3, alpha = .2) + 
+  guides(color = guide_legend(ncol = 1, override.aes = list(size = 2, alpha = 1))) +
+  labs(color = "Cluster\n(first-pass)")
+```
+
+```{r, fig.width=5, fig.height=5}
+df2 %>% 
+  filter(modality == "RNA") %>% 
+  ggplot(aes(x = umap1, y = umap2, color = factor(first_pass_cluster))) +
+  geom_point(size = .3, alpha = .01) + 
+  facet_wrap(~ first_pass_cluster) + 
+  guides(color = guide_legend(ncol = 1, override.aes = list(size = 2, alpha = 1))) +
+  labs(color = "Cluster\n(first-pass)")
+```
+
+```{r, fig.width=6}
+cluster_agreement <- df2 %>% 
+  filter(modality == "RNA") %>% 
+  mutate(first_pass_cluster = factor(first_pass_cluster)) %>% 
+  group_by(Cluster, first_pass_cluster) %>% 
+  count() %>% 
+  group_by(Cluster) %>% 
+  mutate(frac1 = n / sum(n)) %>% 
+  ungroup() %>% 
+  group_by(first_pass_cluster) %>% 
+  mutate(frac2 = n / sum(n)) %>% 
+  ungroup()
+
+cluster_agreement %>% 
+  ggplot(aes(x = Cluster, y = frac1, fill = first_pass_cluster)) +
+  geom_col(color = "black") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(x = "Integration cluster", y = "Fraction",
+       fill = "First-pass cluster")
+
+cluster_agreement %>% 
+  ggplot(aes(x = first_pass_cluster, y = frac2, fill = Cluster)) +
+  geom_col(color = "black") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(x = "First-pass cluster", y = "Fraction",
+       fill = "Integration cluster")
+```
+
+
+```{r}
+# Barcodes to keep
+bcs_to_keep <- df2 %>% 
+  mutate(doublet_atac = case_when(is.na(doublet_atac) ~ F, T ~ doublet_atac)) %>% 
+  mutate(contamination = case_when(is.na(contamination) ~ 0, T ~ contamination)) %>% 
+  filter(!doublet_atac) %>% 
+  filter(contamination < contamination_max) %>% 
+  pull(barcode)
+```
+
+
+# Get TPMs per cluster
+```{r}
+barcodes_cluster <- df2 %>%
+  mutate(Cluster = as.numeric(as.character(Cluster))) %>% 
+  split(.$Cluster) %>%
+  lapply(function(x) {
+    x$barcode
+  })
+names(barcodes_cluster) <- paste0("cluster_", names(barcodes_cluster))
+
+ligerex_clusters <- names(barcodes_cluster) %>% 
+  lapply(function(i){
+  print(i)
+  barcodes_to_keep <- barcodes_cluster[[i]]
+  ligerex_subset <- ligerex2
+  ligerex_subset@raw.data <- ligerex_subset@raw.data %>%
+    lapply(function(raw_data){
+      raw_data[,colnames(raw_data) %in% barcodes_to_keep]
+    })
+  return(ligerex_subset)
+})
+names(ligerex_clusters) <- names(barcodes_cluster)
+
+get_counts_lobj <- function(lobj, modality){
+  exps <- names(lobj@raw.data)
+  exps <- exps[grepl(modality, exps)]
+  lapply(exps, function(x){
+    counts <- lobj@raw.data[[x]]
+    # Check if the object is all zeros. Will be a numeric vector
+    if(!is.numeric(counts)){
+      counts <- rowSums(counts)
+    }
+    data.frame(gene = names(counts),
+               counts = unname(counts)) %>%
+      mutate(exp = x)
+  }) %>%
+    bind_rows() %>%
+    group_by(gene) %>%
+    summarise(counts = sum(counts, na.rm = T))
+}
+
+counts_atac <- ligerex_clusters %>%
+  lapply(get_counts_lobj, "atac") %>%
+  bind_rows(.id = "cluster") %>%
+  spread(cluster, counts)
+
+counts_rna <- ligerex_clusters %>%
+  lapply(get_counts_lobj, "rna") %>%
+  bind_rows(.id = "cluster") %>%
+  spread(cluster, counts)
+
+# garbage collection
+rm(ligerex_clusters)
+gc()
+
+# save(counts_atac, counts_rna,
+#      file = file.path(
+#        "work/liger_all_samples/clusters",
+#        "liger__k25__l10__knn20__res1__db_rm__re_rna_v0.5",
+#        "gene_counts.RData"
+#      )
+# )
+# load(
+#   file.path(
+#     "work/liger_decontx_rna/clusters",
+#     "liger__k25__l10__knn20__res1__db_rm__re_rna_v0.5",
+#     "gene_counts.RData")
+# )
+```
+
+```{r, fig.width=5, fig.height=8, dev="cairo_pdf"}
+gene_list <- c("INS", "GCG", "PPY", "SST",
+               "PRSS1", "CPA1", "KRT19", 
+               "SPARC", "PDGFRA", "RGS5", "VWF", 
+               "SDS", "TPSAB1")
+
+get_gene_tpm <- function(count_mat, gene_to_look){
+  if(gene_to_look %in% count_mat$gene){
+    count_mat %>% 
+    gather("cluster", "counts", -gene) %>% 
+    group_by(cluster) %>% 
+    summarise(gene_counts = counts[gene == gene_to_look],
+              total_reads = sum(counts, na.rm = T)) %>% 
+    mutate(tpm = gene_counts / total_reads * 10^6) %>% 
+    mutate(gene = gene_to_look) %>% 
+    mutate(cluster = as.numeric(gsub("cluster_", "", cluster)))
+  }else{
+    print(sprintf("Couldn't find %s", gene_to_look))
+    return(data.frame())
+  }
+}
+
+gene_counts <- lapply(gene_list, function(gene_to_look){
+  atac_tmp <- get_gene_tpm(counts_atac, gene_to_look) %>% 
+    mutate(modality = "ATAC")
+  rna_tmp <- get_gene_tpm(counts_rna, gene_to_look) %>% 
+    mutate(modality = "RNA")
+  bind_rows(atac_tmp, rna_tmp)
+}) %>% 
+  bind_rows() %>% 
+  mutate(modality = factor(modality, levels = c("RNA", "ATAC"), ordered = T)) %>% 
+  mutate(tpm = case_when(is.nan(tpm) ~ 0, T ~ tpm)) %>% 
+  mutate(gene = factor(gene, levels = gene_list, ordered = T)) %>% 
+  group_by(gene, modality) %>% 
+  mutate(norm = tpm / max(tpm)) %>% 
+  # mutate(cluster_labs = factor(cluster, levels = c(0, 1, 4, 2, 3, 5, 6, 7),
+  #                              labels = c("Acinar", "Ductal", "Ductal 2",
+  #                                         "Alpha", "Beta", "Stellate", 
+  #                                         "Endothelial", "Immune"),
+  #                              ordered = T)) %>% 
+   mutate(cluster_labs = factor(cluster)) %>% 
+  ungroup()
+
+
+gene_counts %>% 
+  
+  ggplot(aes(x = gene, y = cluster_labs, fill = norm)) +
+  geom_tile()  +
+  facet_wrap(~ modality) +
+  # scale_fill_manual(palette = "Reds", direction = 1, breaks = c(0, .5, 1),
+  #                      limits = c(0,1)) +
+  scale_fill_gradient(low = "white", high = "red", breaks = c(0, .5, 1), limits = c(0,1)) +
+  labs(x = "Gene", y = "Cell type", 
+       fill = "Relative expression\nor accessibility") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        axis.text.y = element_text(angle = 45, vjust = .5, hjust = 1), 
+        legend.position = "top")
+```
+
+```{r, fig.width=6, fig.height=4}
+gene_counts %>% 
+  select(gene, cluster, modality, norm) %>% 
+  spread(modality, norm) %>% 
+  mutate(sum = RNA + ATAC) %>% 
+  ggplot(aes(x = gene, y = sum)) +
+  geom_hline(yintercept = 0) +
+  geom_point() +
+  facet_wrap(~ cluster) +
+  theme(axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1),
+        legend.position = "top")
+```
+
+
+```{r, fig.width=5, fig.height=4}
+dm <- gene_counts %>% 
+  filter(modality == "RNA") %>% 
+  select(cluster, gene, norm) %>% 
+  spread(gene, norm) %>% 
+  tibble::column_to_rownames("cluster") %>% 
+  data.matrix() %>% 
+  t()
+
+clus_ord <- hclust(dist(t(dm)))
+clus_ord <- clus_ord$labels[clus_ord$order]
+gene_ord <- hclust(dist(dm))
+gene_ord <- gene_ord$labels[gene_ord$order]
+
+gene_counts %>% 
+  mutate(cluster = factor(cluster, levels = clus_ord, ordered = T)) %>% 
+  mutate(gene = factor(gene, levels = gene_ord, ordered = T)) %>% 
+  ggplot(aes(x = gene, y = cluster, fill = norm)) +
+  geom_tile()  +
+  facet_wrap(~ modality) +
+  scale_fill_gradient(low = "white", high = "red", breaks = c(0, .5, 1), limits = c(0,1)) +
+  labs(x = "Gene", y = "Cell type", 
+       fill = "Relative expression\nor accessibility") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        legend.position = "top")
+
+rm(clus_ord, gene_ord, dm)
+```
+
+```{r, fig.width=8, fig.height=3.5}
+df3 <- liger::plotByDatasetAndCluster(ligerex2, return.plots = T) 
+df3 <- df3[[1]]$data %>% 
+  tibble::rownames_to_column("barcode") %>% 
+  left_join(atac_qc, by = "barcode") %>% 
+  select(-sample) %>% 
+  left_join(rna_qc, by = "barcode") %>% 
+  select(-sample) %>% 
+  mutate(sample = gsub("_.*", "", Dataset)) %>% 
+  left_join(sample_md, by = "sample") %>% 
+  left_join(dctx, by = c("sample", "barcode")) %>%
+  left_join(archr, by = c("barcode")) %>%
+  left_join(first_pass_clusters, by = c("barcode")) %>%
+  mutate(modality = case_when(grepl("atac", barcode) ~ "ATAC", T ~ "RNA")) %>% 
+  rename(umap1 = tsne1, umap2 = tsne2) %>% 
+  mutate(Cluster = as.numeric(as.character(Cluster))) %>% 
+  
+  # Handle n=1 clusters
+  filter(Cluster < 10) %>%  
+  
+  # Merge repeated clusters
+  mutate(Cluster = case_when(Cluster %in% c(4, 9, 16, 5, 1, 15) ~ 1, T ~ Cluster)) %>% 
+  mutate(Cluster = case_when(Cluster %in% c(10, 2) ~ 2, T ~ Cluster)) %>% 
+  
+  mutate(Cluster = factor(Cluster, 
+                          levels = sort(unique(Cluster)), 
+                          labels = rank(sort(unique(Cluster))) - 1, 
+                          ordered = T))
+
+clus_coords2 <- df3 %>% 
+  group_by(Cluster) %>% 
+  summarise(umap1 = median(umap1), umap2 = median(umap2))
+
+df3 %>% 
+  ggplot(aes(x = umap1, y = umap2, color = Cluster)) +
+  geom_point(size = .3, alpha = .2) + 
+  facet_wrap(~ modality) +
+  guides(color = guide_legend(ncol = 2, override.aes = list(size = 2, alpha = 1)))
+```
+
+```{r}
+table(df3$Cluster, df3$modality)
+```
+
+
+```{r, fig.width=6}
+df3 %>% 
+  ggplot(aes(x = umap1, y = umap2)) +
+  geom_point(aes(color = Cluster), size = .3, alpha = .3) +
+  geom_label_repel(aes(label = Cluster), data = clus_coords2) +
+  guides(color = guide_legend(ncol = 2, override.aes = list(size = 2, alpha = 1)))
+```
+
+```{r, fig.height=6, fig.width=5}
+river_edges <- df3 %>% 
+  filter(modality == "RNA") %>% 
+  select(barcode, Cluster, first_pass_cluster) %>% 
+  # group_by(Cluster, first_pass_cluster) %>% 
+  # summarise(Value = n()) %>% 
+  
+  group_by(Cluster, first_pass_cluster) %>% 
+  count() %>% 
+  group_by(Cluster) %>% 
+  mutate(frac1 = n / sum(n)) %>% 
+  ungroup() %>% 
+  group_by(first_pass_cluster) %>% 
+  mutate(frac2 = n / sum(n)) %>% 
+  ungroup() %>% 
+  mutate(Value = frac2) %>% 
+
+  rename(N1 = first_pass_cluster,
+         N2 = Cluster) %>% 
+  mutate(N1 = factor(N1, levels = 0:13, labels = c("Ductal", "Acinar", "Alpha",
+                                                   "Beta", "Stellate activated", 
+                                                   "Delta", "Stellate activated 2", 
+                                                   "Stellate quiescent",
+                                                   "Gamma", "Endothelial", 
+                                                   "Immune", "Foo1", "Foo2",
+                                                   "Mast"))) %>% 
+  mutate(N2 = factor(N2, levels = 0:6, labels = c("Acinar", "Ductal", "Alpha",
+                                                  "Beta", "Foo", 
+                                                  "Stellate+Endothelial", 
+                                                  "Delta+Gamma"))) %>% 
+  mutate(N1 = paste0(" ", N1)) %>%
+  mutate(N2 = paste0("", N2)) %>%
+  mutate(ID = paste(N1, N2, sep = "__")) %>% 
+  as.data.frame()
+head(river_edges)
+
+river_nodes <- data.frame(ID = unique(c(river_edges$N1, river_edges$N2))) %>% 
+  mutate(x = c(rep(1, length(unique(river_edges$N1))), 
+               rep(2, length(unique(river_edges$N2))))
+  )
+head(river_nodes)
+
+ds <- default.style()
+ds$srt <- 0
+river_plot <- makeRiver(nodes = river_nodes, edges = river_edges)
+riverplot(river_plot, plot_area = 1, default_style = ds)
+```
+
+# Get TPMs per cluster
+```{r}
+barcodes_cluster <- df3 %>%
+  mutate(Cluster = as.numeric(as.character(Cluster))) %>% 
+  split(.$Cluster) %>%
+  lapply(function(x) {
+    x$barcode
+  })
+names(barcodes_cluster) <- paste0("cluster_", names(barcodes_cluster))
+
+ligerex_clusters <- names(barcodes_cluster) %>% 
+  lapply(function(i){
+  print(i)
+  barcodes_to_keep <- barcodes_cluster[[i]]
+  ligerex_subset <- ligerex2
+  ligerex_subset@raw.data <- ligerex_subset@raw.data %>%
+    lapply(function(raw_data){
+      raw_data[,colnames(raw_data) %in% barcodes_to_keep]
+    })
+  return(ligerex_subset)
+})
+names(ligerex_clusters) <- names(barcodes_cluster)
+
+get_counts_lobj <- function(lobj, modality){
+  exps <- names(lobj@raw.data)
+  exps <- exps[grepl(modality, exps)]
+  lapply(exps, function(x){
+    counts <- lobj@raw.data[[x]]
+    # Check if the object is all zeros. Will be a numeric vector
+    if(!is.numeric(counts)){
+      counts <- rowSums(counts)
+    }
+    data.frame(gene = names(counts),
+               counts = unname(counts)) %>%
+      mutate(exp = x)
+  }) %>%
+    bind_rows() %>%
+    group_by(gene) %>%
+    summarise(counts = sum(counts, na.rm = T))
+}
+
+counts_atac <- ligerex_clusters %>%
+  lapply(get_counts_lobj, "atac") %>%
+  bind_rows(.id = "cluster") %>%
+  spread(cluster, counts)
+
+counts_rna <- ligerex_clusters %>%
+  lapply(get_counts_lobj, "rna") %>%
+  bind_rows(.id = "cluster") %>%
+  spread(cluster, counts)
+
+# garbage collection
+rm(ligerex_clusters)
+gc()
+```
+
+```{r, fig.width=5, fig.height=4, dev="cairo_pdf"}
+gene_list <- c("INS", "GCG", "PPY", "SST",
+               "PRSS1", "CPA1", "KRT19", 
+               "SPARC", "PDGFRA", "RGS5", "VWF", 
+               "SDS", "TPSAB1")
+
+get_gene_tpm <- function(count_mat, gene_to_look){
+  if(gene_to_look %in% count_mat$gene){
+    count_mat %>% 
+    gather("cluster", "counts", -gene) %>% 
+    group_by(cluster) %>% 
+    summarise(gene_counts = counts[gene == gene_to_look],
+              total_reads = sum(counts, na.rm = T)) %>% 
+    mutate(tpm = gene_counts / total_reads * 10^6) %>% 
+    mutate(gene = gene_to_look) %>% 
+    mutate(cluster = as.numeric(gsub("cluster_", "", cluster)))
+  }else{
+    print(sprintf("Couldn't find %s", gene_to_look))
+    return(data.frame())
+  }
+}
+
+gene_counts <- lapply(gene_list, function(gene_to_look){
+  atac_tmp <- get_gene_tpm(counts_atac, gene_to_look) %>% 
+    mutate(modality = "ATAC")
+  rna_tmp <- get_gene_tpm(counts_rna, gene_to_look) %>% 
+    mutate(modality = "RNA")
+  bind_rows(atac_tmp, rna_tmp)
+}) %>% 
+  bind_rows() %>% 
+  mutate(modality = factor(modality, levels = c("RNA", "ATAC"), ordered = T)) %>% 
+  mutate(tpm = case_when(is.nan(tpm) ~ 0, T ~ tpm)) %>% 
+  mutate(gene = factor(gene, levels = gene_list, ordered = T)) %>% 
+  group_by(gene, modality) %>% 
+  mutate(norm = tpm / max(tpm)) %>% 
+  mutate(cluster_labs = factor(cluster, levels = c(0:6),
+                               # labels = c("Ductal", "Acinar","Alpha", "Beta", 
+                               #            "Stellate", "Gamma+Delta", "?",
+                               #            "Endothelial", "Immune"),
+                               ordered = T)) %>%
+  ungroup()
+
+
+gene_counts %>% 
+  
+  ggplot(aes(x = gene, y = cluster_labs, fill = norm)) +
+  geom_tile()  +
+  facet_wrap(~ modality) +
+  # scale_fill_manual(palette = "Reds", direction = 1, breaks = c(0, .5, 1),
+  #                      limits = c(0,1)) +
+  scale_fill_gradient(low = "white", high = "red", breaks = c(0, .5, 1), limits = c(0,1)) +
+  labs(x = "Gene", y = "Cell type", 
+       fill = "Relative expression\nor accessibility") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        # axis.text.y = element_text(angle = 45, vjust = .5, hjust = 1), 
+        legend.position = "top")
+```
+
+```{r, fig.width=6}
+cluster_agreement <- df3 %>% 
+  filter(modality == "RNA") %>% 
+  mutate(first_pass_cluster = factor(first_pass_cluster)) %>% 
+  group_by(Cluster, first_pass_cluster) %>% 
+  count() %>% 
+  group_by(Cluster) %>% 
+  mutate(frac1 = n / sum(n)) %>% 
+  ungroup() %>% 
+  group_by(first_pass_cluster) %>% 
+  mutate(frac2 = n / sum(n)) %>% 
+  ungroup() %>% 
+  mutate(cluster_labs = factor(Cluster, levels = c(0:8),
+                               labels = c("Ductal", "Acinar","Alpha", "Beta", 
+                                          "Stellate", "Gamma+Delta", "?",
+                                          "Endothelial", "Immune"),
+                               ordered = T)) %>% 
+  mutate(cluster_labs2 = factor(first_pass_cluster,
+                               labels = c("Ductal", "Acinar", "Alpha", "Beta", 
+                                          "Stellate", "Gamma+Delta",
+                                          "Immune", "Endothelial", "?"),
+                               ordered = T))
+
+cluster_agreement %>% 
+  ggplot(aes(x = cluster_labs, y = frac1, fill = cluster_labs2)) +
+  geom_col(color = "black") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(x = "Cross-modality cluster", y = "Fraction of cluster",
+       fill = "RNA-only cluster") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+cluster_agreement %>% 
+  ggplot(aes(x = cluster_labs2, y = frac2, fill = cluster_labs)) +
+  geom_col(color = "black") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(x = "RNA-only cluster", y = "Fraction of cluster",
+       fill = "Cross-modality\ncluster") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+```{r}
+outdir <- file.path("work/liger_all_samples_134-5/clusters", liger_specs_recluster, "barcodes")
+dir.create(outdir, recursive = T, showWarnings = F)
+
+df3 %>% filter(modality == "ATAC") %>%
+  filter(barcode %in% bcs_to_keep) %>%  # remove doublets and high contamination
+  group_by(sample, Cluster) %>%
+  summarise(n_cells = n()) %>%
+  spread(Cluster, n_cells)
+
+df3 %>% filter(modality == "RNA") %>%
+  filter(barcode %in% bcs_to_keep) %>%  # remove doublets and high contamination
+  group_by(sample, Cluster) %>%
+  summarise(n_cells = n()) %>%
+  spread(Cluster, n_cells)
+
+clusters <- df3 %>%
+  filter(barcode %in% bcs_to_keep) %>%  # remove doublets and high contamination
+  select(barcode, Cluster) %>%
+  rename(cluster = Cluster)
+
+split_write  = function(x) {
+  if(nrow(x) > 0){
+    fname <- sprintf("barcodes_%s_%s_%s.txt", unique(x$sample), unique(x$type), unique(x$cluster))
+    fname <- file.path(outdir, fname)
+    write.table(x$barcode, fname, quote = F, row.names = F, col.names = F)
+  } else {
+    message("skipped")
+  }
+}
+
+bc_counts <- clusters %>%
+  separate(barcode, c("sample", "type", "barcode"), "_") %>%
+  arrange(sample, type, cluster, barcode) %>%
+  group_by(sample, type, cluster) %>%
+  summarise(n = n())
+
+# clusters %>%
+#   separate(barcode, c("sample", "type", "barcode"), sep = "_") %>%
+#   arrange(sample, type, cluster, barcode) %>%
+#   # split(., list(.$sample, .$type, .$cluster)) %>%
+#   # lapply(split_write)
+#   group_by(sample, type, cluster) %>%
+#   do(split_write(.))
+```

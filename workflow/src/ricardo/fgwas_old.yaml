@@ -1,0 +1,364 @@
+results: "work/liger_all_samples_134-5/clusters"
+liger_handle: "freeze_2021_01_11"
+
+summits_da_string: 
+  "da_analysis_deseq2/cluster_{cluster}_min3/{cond}_dar_above_{fc}pct.bed"
+  # "da_analysis_henry/mast_random_effect_0nAGQ_model__no_min_FDRs/{cluster}/{cond}_dar_below_{fc}pct.bed"
+
+# # Peaks (summits below)
+# features:
+#   acinar_peaks:
+#     - "macs2/PRSS1_peaks.min2.bed"
+#   ductal_peaks:
+#     - "macs2/KRT19_peaks.min2.bed"
+#   alpha_peaks:
+#     - "macs2/GCG_peaks.min2.bed"
+#   beta_peaks:
+#     - "macs2/INS_peaks.min2.bed"
+#   delta_peaks:
+#     - "macs2/SST_peaks.min2.bed"
+#   gamma_peaks:
+#     - "macs2/PPY_peaks.min2.bed"
+#   stellateA_peaks:
+#     - "macs2/PDGFRA_peaks.min2.bed"
+#   stellateQ_peaks:
+#     - "macs2/RGS5_peaks.min2.bed"
+#   endothelial_peaks:
+#     - "macs2/VWF_peaks.min2.bed"
+#   immune_peaks:
+#     - "macs2/SDS_peaks.min2.bed"
+  
+#   beta_dar_CVB4:
+#     - "da_analysis_archr/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   beta_dar_cytokine:
+#     - "da_analysis_archr/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   beta_dar_pret1d:
+#     - "da_analysis_archr/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   beta_dar_t1d:
+#     - "da_analysis_archr/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   beta_dar_aab:
+#     - "da_analysis_archr/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+
+#   acinar_dar_aab:
+#     - "da_analysis_archr/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   ductal_dar_aab:
+#     - "da_analysis_archr/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   alpha_dar_aab:
+#     - "da_analysis_archr/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   gamma_dar_aab:
+#     - "da_analysis_archr/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   delta_dar_aab:
+#     - "da_analysis_archr/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   stellateA_dar_aab:
+#     - "da_analysis_archr/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   stellateQ_dar_aab:
+#     - "da_analysis_archr/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   endothelial_dar_aab:
+#     - "da_analysis_archr/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+#   immune_dar_aab:
+#     - "da_analysis_archr/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        AAB_dar_above_0.9pct.bed"
+
+#   acinar_dar_pret1d:
+#     - "da_analysis_archr/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   ductal_dar_pret1d:
+#     - "da_analysis_archr/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   alpha_dar_pret1d:
+#     - "da_analysis_archr/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   gamma_dar_pret1d:
+#     - "da_analysis_archr/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   delta_dar_pret1d:
+#     - "da_analysis_archr/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   stellateA_dar_pret1d:
+#     - "da_analysis_archr/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   stellateQ_dar_pret1d:
+#     - "da_analysis_archr/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   endothelial_dar_pret1d:
+#     - "da_analysis_archr/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+#   immune_dar_pret1d:
+#     - "da_analysis_archr/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        preT1D_dar_above_0.9pct.bed"
+  
+#   acinar_dar_t1d:
+#     - "da_analysis_archr/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   ductal_dar_t1d:
+#     - "da_analysis_archr/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   alpha_dar_t1d:
+#     - "da_analysis_archr/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   gamma_dar_t1d:
+#     - "da_analysis_archr/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   delta_dar_t1d:
+#     - "da_analysis_archr/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   stellateA_dar_t1d:
+#     - "da_analysis_archr/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   stellateQ_dar_t1d:
+#     - "da_analysis_archr/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   endothelial_dar_t1d:
+#     - "da_analysis_archr/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+#   immune_dar_t1d:
+#     - "da_analysis_archr/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        T1D_dar_above_0.9pct.bed"
+
+#   acinar_dar_cytokine:
+#     - "da_analysis_archr/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   ductal_dar_cytokine:
+#     - "da_analysis_archr/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   alpha_dar_cytokine:
+#     - "da_analysis_archr/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   gamma_dar_cytokine:
+#     - "da_analysis_archr/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   delta_dar_cytokine:
+#     - "da_analysis_archr/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   stellateA_dar_cytokine:
+#     - "da_analysis_archr/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   stellateQ_dar_cytokine:
+#     - "da_analysis_archr/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   endothelial_dar_cytokine:
+#     - "da_analysis_archr/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+#   immune_dar_cytokine:
+#     - "da_analysis_archr/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        Cytokine_dar_above_0.9pct.bed"
+
+#   acinar_dar_CVB4:
+#     - "da_analysis_archr/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   ductal_dar_CVB4:
+#     - "da_analysis_archr/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   alpha_dar_CVB4:
+#     - "da_analysis_archr/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   gamma_dar_CVB4:
+#     - "da_analysis_archr/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   delta_dar_CVB4:
+#     - "da_analysis_archr/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   stellateA_dar_CVB4:
+#     - "da_analysis_archr/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   stellateQ_dar_CVB4:
+#     - "da_analysis_archr/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   endothelial_dar_CVB4:
+#     - "da_analysis_archr/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+#   immune_dar_CVB4:
+#     - "da_analysis_archr/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+#        CVB4_dar_above_0.9pct.bed"
+
+# Summits
+features:
+  acinar_summits:
+    - "macs2/PRSS1_summits.ext150.min2.bed"
+  ductal_summits:
+    - "macs2/KRT19_summits.ext150.min2.bed"
+  alpha_summits:
+    - "macs2/GCG_summits.ext150.min2.bed"
+  beta_summits:
+    - "macs2/INS_summits.ext150.min2.bed"
+  delta_summits:
+    - "macs2/SST_summits.ext150.min2.bed"
+  gamma_summits:
+    - "macs2/PPY_summits.ext150.min2.bed"
+  stellateA_summits:
+    - "macs2/PDGFRA_summits.ext150.min2.bed"
+  stellateQ_summits:
+    - "macs2/RGS5_summits.ext150.min2.bed"
+  endothelial_summits:
+    - "macs2/VWF_summits.ext150.min2.bed"
+  immune_summits:
+    - "macs2/SDS_summits.ext150.min2.bed"
+  
+  # beta_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # beta_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # beta_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # beta_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # beta_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_INS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed" 
+
+  # acinar_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # ductal_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # alpha_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # gamma_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # delta_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # stellateA_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # stellateQ_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # endothelial_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+  # immune_dar_aab:
+  #   - "da_analysis_archr_summits150/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      AAB_dar_above_0.99pct.bed"
+
+  # acinar_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # ductal_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # alpha_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # gamma_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # delta_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # stellateA_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # stellateQ_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # endothelial_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  # immune_dar_pret1d:
+  #   - "da_analysis_archr_summits150/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      preT1D_dar_above_0.99pct.bed"
+  
+  # acinar_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # ductal_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # alpha_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # gamma_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # delta_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # stellateA_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # stellateQ_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # endothelial_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+  # immune_dar_t1d:
+  #   - "da_analysis_archr_summits150/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      T1D_dar_above_0.99pct.bed"
+
+  # acinar_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # ductal_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # alpha_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # gamma_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # delta_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # stellateA_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # stellateQ_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # endothelial_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+  # immune_dar_cytokine:
+  #   - "da_analysis_archr_summits150/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      Cytokine_dar_above_0.99pct.bed"
+
+  # acinar_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_PRSS1_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # ductal_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_KRT19_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # alpha_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_GCG_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # gamma_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_PPY_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # delta_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_SST_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # stellateA_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_PDGFRA_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # stellateQ_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_RGS5_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # endothelial_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_VWF_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"
+  # immune_dar_CVB4:
+  #   - "da_analysis_archr_summits150/cluster_SDS_wilcox_age+sex.50bins_normby_tss_enrichment/\
+  #      CVB4_dar_above_0.99pct.bed"

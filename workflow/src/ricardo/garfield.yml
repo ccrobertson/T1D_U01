@@ -1,0 +1,38 @@
+ionice: "ionice -c2 -n7"
+
+maindir: "work/liger_all_samples_134-5/clusters/freeze_2021_01_11"
+garfield: "/home/albanus/software/garfield/garfield-v2"
+garfield_data: "/home/albanus/software/garfield/garfield-data"
+fgwas_sumary_stats_dir: "data/summary_stats_for_fgwas"
+
+da_string: 
+  # "da_analysis_deseq2/cluster_{cluster}_min3/{cond}_dar_{direction}_{fc}pct.bed"
+  # "da_analysis_henry/mast_model/{cluster}/{cond}_dar_{direction}_{fc}pct.bed"
+  "da_analysis_henry/mast_random_effect_0nAGQ_model__no_min/{cluster}/{cond}_dar_{direction}_{fc}pct.bed"
+summit_string:
+  "macs2/{cluster}_summits.ext150.min2.bed"
+
+GWAS:
+    - T1D_Chiou
+    # - T2D_DIAMANTE
+    # - FGluadjBMI_MAGIC
+    # - FInsadjBMI_MAGIC
+
+clusters: 
+  - "INS"
+  # - "GCG"
+  # - "SST"
+  # - "PPY"
+  # - "KRT19"
+  # - "PDGFRA"
+  # - "PRSS1"
+  # - "RGS5"
+  # - "SDS"
+  # - "VWF"
+
+conditions:
+  - "AAB"
+  - "T1D"
+  - "preT1D"
+  - "Cytokine"
+  - "CVB4"

@@ -1,0 +1,84 @@
+basedir: "work/liger_all_samples_134-5"
+liger_obj: "freeze_2021_01_11"
+
+
+# # ArchR
+# da_peaks: "da_analysis_archr/cluster_{cluster}_wilcox_age+sex.50bins_normby_tss_enrichment"
+# da_summits: 
+#     "da_analysis_archr_summits150/\
+#     cluster_{cluster}_wilcox_age+sex+bmi.50bins_normby_tss_enrichment"
+# outdir: "results/maf0.01_cluster_{cluster}_wilcox_age+sex+bmi.50bins_normby_tss_enrichment"
+
+# # DESeq2 pseudobulk
+# da_summits_t1d: "da_analysis_deseq2/cluster_{cluster}_tsse_hqaa_age+sex+bmi.50bins.min3"
+# da_summits_pert: "da_analysis_deseq2/cluster_{cluster}_age+sex+bmi.50bins.min3"
+# outdir: "results/maf0.01_cluster_{cluster}_deseq2.min3"
+
+# MAST
+da_summits_t1d: "da_analysis_henry_random_effect_model/{cluster}"
+da_summits_pert: "da_analysis_henry_random_effect_model/{cluster}"
+outdir: "results/mast_maf0.01_cluster_{cluster}"
+
+n_clusters: 8
+
+plink_dir: "/lab/data/genomes/human/hg19/1000G_EUR_Phase3_plink"
+snps: "/lab/data/genomes/human/hg19/hapMap3_snps/w_hm3.onlySNPid.snplist"
+w_hm3: "/lab/work/porchard/sn-muscle-project/data/ldsc-data/w_hm3.snplist"
+weights_dir: "/lab/work/porchard/sn-muscle-project/data/ldsc-data/\
+              1000G_Phase3_weights_hm3_no_MHC"
+freq_dir: "/lab/work/porchard/sn-muscle-project/data/ldsc-data/\
+           1000G_Phase3_frq"
+
+
+# LDSC
+other_annots: ""
+
+# maf: 0.05
+# baseline_dir: "/lab/work/porchard/sn-muscle-project/data/ldsc-data/baseline"
+# baseline_dir: "/lab/work/porchard/sn-muscle-project/work/ldsc-baseline/\
+#                results/baseline-model"
+
+maf: 0.01
+baseline_dir: "/lab/work/porchard/sn-muscle-project/work/\
+               ldsc-baseline-min-maf/results/baseline-model"
+
+
+# GWAS
+GWAS:
+    T1D: 
+        "/lab/data/gwas/2018_aylward_t1d/\
+         T1D.Aylward_2018.Human_Molecular_Genetics.txt.gz"
+    T1D2020:
+        "/lab/work/albanus/2020_nih_islets_sn_t1d/data/2020_chiou_t1d_gwas/\
+        summary_stats/GCST90012879_hg19.for_ldsc.tsv.gz"
+    T1D2021:
+        "/lab/work/albanus/2020_nih_islets_sn_t1d/data/2020_chiou_t1d_gwas/\
+        2021_nature/GCST90014023_hg19.for_ldsc.tsv.gz"
+    T2Dbmiadj:
+        "/lab/work/porchard/summary-stats-for-ldsc/work/diamante/diamante/\
+         reformatted-for-ldsc/DIAMANTE-T2D-BMIADJ.ldsc.txt"
+    FGluadjBMI:
+        "/lab/work/porchard/summary-stats-for-ldsc/work/magic-2020/\
+         magic-2020/reformatted-for-ldsc/MAGIC-2020-FGluadjBMI.ldsc.txt"
+    FInsadjBMI: 
+        "/lab/work/porchard/summary-stats-for-ldsc/work/magic-2020/\
+         magic-2020/reformatted-for-ldsc/MAGIC-2020-FInsadjBMI.ldsc.txt"
+
+clusters: 
+  - "INS"
+#   - "GCG"
+#   - "SST"
+#   - "PPY"
+#   - "KRT19"
+#   - "PDGFRA"
+#   - "PRSS1"
+#   - "RGS5"
+#   - "SDS"
+#   - "VWF"
+
+conditions:
+  - "AAB"
+  - "T1D"
+  - "preT1D"
+  - "Cytokine"
+  - "CVB4"

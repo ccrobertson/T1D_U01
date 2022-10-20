@@ -1,0 +1,62 @@
+results: "work/liger_all_samples_134-5/clusters"
+liger_handle: "freeze_2021_01_11"
+summary_stats_dir: "data/summary_stats_for_fgwas"
+
+summits_da_string: 
+  # "da_analysis_deseq2/cluster_{cluster}_min3/{trait}_dar_above_{fc}pct.bed"
+  # "da_analysis_henry/mast_random_effect_0nAGQ_model__no_min_FDRs/\
+  # {cluster}/{cond}_dar_{direction}_{fc}pct.bed"
+  # "da_analysis_henry/mast_model/{cluster}/{cond}_dar_{direction}_{fc}pct.bed"
+  "da_analysis_henry/mast_random_effect_0nAGQ_model__no_min/\
+  {cluster}/{cond}_dar_{direction}_{fc}pct.bed"
+
+features:
+  acinar_summits:
+    - "macs2/PRSS1_summits.ext150.min2.bed"
+  ductal_summits:
+    - "macs2/KRT19_summits.ext150.min2.bed"
+  alpha_summits:
+    - "macs2/GCG_summits.ext150.min2.bed"
+  beta_summits:
+    - "macs2/INS_summits.ext150.min2.bed"
+  delta_summits:
+    - "macs2/SST_summits.ext150.min2.bed"
+  gamma_summits:
+    - "macs2/PPY_summits.ext150.min2.bed"
+  stellateA_summits:
+    - "macs2/PDGFRA_summits.ext150.min2.bed"
+  stellateQ_summits:
+    - "macs2/RGS5_summits.ext150.min2.bed"
+  endothelial_summits:
+    - "macs2/VWF_summits.ext150.min2.bed"
+  immune_summits:
+    - "macs2/SDS_summits.ext150.min2.bed"
+  
+GWAS:
+    T1D_Chiou:
+        "/lab/work/albanus/2020_nih_islets_sn_t1d/data/2020_chiou_t1d_gwas/2021_nature/GCST90014023_hg19.for_ldsc.tsv.gz"
+    # T2D_DIAMANTE:
+    #     "/lab/work/porchard/summary-stats-for-ldsc/work/diamante/diamante/reformatted-for-ldsc/DIAMANTE-T2D-BMIADJ.ldsc.txt"
+    # FGluadjBMI_MAGIC:
+    #     "/lab/work/porchard/summary-stats-for-ldsc/work/magic-2020/magic-2020/reformatted-for-ldsc/MAGIC-2020-FGluadjBMI.ldsc.txt"
+    # FInsadjBMI_MAGIC: 
+    #     "/lab/work/porchard/summary-stats-for-ldsc/work/magic-2020/magic-2020/reformatted-for-ldsc/MAGIC-2020-FInsadjBMI.ldsc.txt"
+
+clusters: 
+  - "INS"
+  # - "GCG"
+  # - "SST"
+  # - "PPY"
+  # - "KRT19"
+  # - "PDGFRA"
+  # - "PRSS1"
+  # - "RGS5"
+  # - "SDS"
+  # - "VWF"
+
+conditions:
+  - "AAB"
+  # - "T1D"
+  # - "preT1D"
+  - "Cytokine"
+  - "CVB4"

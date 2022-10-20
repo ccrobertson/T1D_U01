@@ -15,7 +15,7 @@ _resources = partial(os.path.join, "resources")
 _logs = partial(_results, "logs")
 
 
-configfile: _data("nandini_run_design.json")
+configfile: _data("batch_design.json")
 configfile: "workflow/src/markers.yaml"
 
 def get_bam(set, sample):
@@ -27,27 +27,14 @@ def get_samples_for_set(set):
     return samples
 
 def get_clusters_for_set(set):
-    d = pd.read_csv("results/liger/3GEX_"+set+"/cluster_to_cell_type.csv")
+    d = pd.read_csv("results/liger/"+set+"/cluster_to_cell_type.csv")
     return d['cell_type'].unique().tolist()
-
-def barcode_files_for_set(set):
-    files = expand(
-        _results("atac_barcodes_sample_cluster"+set+"/atac_barcodes_{sample}_{cluster}.txt"),
-            sample=get_samples_for_set(set),
-            cluster=get_clusters_for_set(set)
-        )
-    return files
-
-cell_types_all = get_clusters_for_set("all")
-cell_types_noNM3 = get_clusters_for_set("noNM3")
-samples_all = get_samples_for_set("all")
-samples_noNM3 = get_samples_for_set("noNM3")
 
 
 rule all:
     input:
         #~~~~~ get barcode lists
-        #expand(_results("atac_barcodes_sample_cluster/noNM3/atac_barcodes_{sample}_{cluster}.txt"), sample=samples_noNM3, cluster=cell_types_noNM3),
+        expand(_results("atac_barcodes_sample_cluster/{set}/atac_barcodes_{sample}_{cluster}.txt"), sample=get_samples_for_set("multiome_5GEX"), cluster=get_clusters_for_set("multiome_5GEX")),
         #expand(_results("atac_barcodes_sample_cluster/all/atac_barcodes_{sample}_{cluster}.txt"), sample=samples_all, cluster=cell_types_all),
         #~~~~~ filter bams
         #expand(_results("atac_bam_sample_cluster/noNM3/atac_{sample}_{cluster}.bam"),sample=samples_noNM3, cluster=cell_types_noNM3),
@@ -56,57 +43,24 @@ rule all:
         #expand(_results("atac_bam_cluster/noNM3/atac_{cluster}.bam"), cluster=cell_types_noNM3),
         #expand(_results("atac_bam_cluster/all/atac_{cluster}.bam"), cluster=cell_types_all),
         #~~~~~ call peaks
-        expand(_results("peakcalls/noNM3/{cluster}_summits_ext500_noblacklist.bed"), cluster=cell_types_noNM3),
+        expand(_results("peakcalls/{set}/{cluster}_summits_ext500_noblacklist.bed"), cluster=cell_types_noNM3),
         #expand(_results("peakcalls/{set}/{cluster}_summits.bed"), cluster=get_clusters_for_set("all"), set="all"),
         #expand(_results("peakcalls/{set}/{cluster}_summits.bed"), cluster=get_clusters_for_set("noNM3"), set="noNM3"),
 
-#want a file with the following columns:
-#   sample barcode donor condition cluster cell_type
-# rule barcode_map:
-#     input:
-#         demuxlet_best
-#         liger_clusters = "results/liger/liger_clusters.tsv")
-#     output:
-#         """
-#         """
 
 
-rule barcodes_by_sample_by_cluster_noNM3:
+rule barcodes_by_sample_by_cluster:
     input:
-        barcode_to_cell_type = "results/liger/3GEX_noNM3/barcode_to_cluster_to_cell_type.csv",
-        barcode_map = "resources/multiome_barcode_map.rds",
+        barcode_to_cell_type = "results/liger/{set}/barcode_to_cluster_to_cell_type.csv",
     output:
-        expand(_results("atac_barcodes_sample_cluster/noNM3/atac_barcodes_{sample}_{cluster}.txt"), sample=samples_noNM3, cluster=cell_types_noNM3),
-        #lambda wildcards: barcode_files_for_set(wildcards.set),
+        barcodes = _results("atac_barcodes_sample_cluster/{set}/barcodes_{sample}_{cluster}.txt"),
     params:
-        samples = samples_noNM3,
-        cell_types = cell_types_noNM3,
-        outdir = _results("atac_barcodes_sample_cluster/noNM3"),
+        sample = "{sample}",
+        cluster = "{cluster}",
     shell:
         """
-        Rscript workflow/scripts/barcodes_by_sample_by_cluster.R \
-            --barcode_to_cell_type {input.barcode_to_cell_type} \
-            --barcode_map {input.barcode_map} \
-            --outdir {params.outdir}
-        """
-
-rule barcodes_by_sample_by_cluster_all:
-    input:
-        barcode_to_cell_type = "results/liger/3GEX_all/barcode_to_cluster_to_cell_type.csv",
-        barcode_map = "resources/multiome_barcode_map.rds",
-    output:
-        expand(_results("atac_barcodes_sample_cluster/all/atac_barcodes_{sample}_{cluster}.txt"), sample=samples_all, cluster=cell_types_all),
-        #lambda wildcards: barcode_files_for_set(wildcards.set),
-    params:
-        samples = samples_noNM3,
-        cell_types = cell_types_noNM3,
-        outdir = _results("atac_barcodes_sample_cluster/all"),
-    shell:
-        """
-        Rscript workflow/scripts/barcodes_by_sample_by_cluster.R \
-            --barcode_to_cell_type {input.barcode_to_cell_type} \
-            --barcode_map {input.barcode_map} \
-            --outdir {params.outdir}
+        sample=$(echo "{params.sample}" | sed 's/-/_/g')
+        awk -v s="$sample" -v c="{params.cluster}" 'BEGIN {{FS=","}} $1==s && $4==c {{ print $2"-1"}}' {input.barcode_to_cell_type} > {output.barcodes}
         """
 
 rule bam_by_sample_by_cluster:

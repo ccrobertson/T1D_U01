@@ -60,6 +60,13 @@ for ( i in 1:length(known_markers)) {
 }
 #dev.off()
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Export UMAP coordinates
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+df = data.frame(liger_obj@cell.data, cluster=liger_obj@clusters, liger_obj@tsne.coords)
+saveRDS(df, file=file.path(opts$outdir, "liger_umap_coordinates.rds"))
+
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Differential expression analyses

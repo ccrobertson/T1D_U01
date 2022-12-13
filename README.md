@@ -90,6 +90,44 @@ python workflow/scripts/make_library_json.py \
 
 ```
 
+### Run nf on 2020 ChenLab ATAC
+#!!!!! MISSING HPAP055 !!!!!!!!!!!
+```bash
+cd $WORK/results/2020_Chenlab_atac/nf_atac_results
+nohup nextflow -bg run -resume \
+  -params-file $WORK/data/2020-Chenlab_atac_hg38.json \
+  -c $WORK/results/2020_Chenlab_atac/nextflow.config \
+  -work-dir $WORK/results/2020_Chenlab_atac/nf_atac_results/work \
+  --results $WORK/results/2020_Chenlab_atac/nf_atac_results \
+  /lab/work/ccrober/sw/snATACseq-NextFlow/main.nf
+
+```
+
+
+### Run nf on 2020 ChenLab 3GEX
+# Note that the cellranger web summary report provides which chemistry was
+# used for each library
+```bash
+cd $WORK/results/2020_Chenlab_gex_V3/nf_gex_results
+nohup nextflow -bg run -resume \
+  -params-file $WORK/data/2020-Chenlab_gex_V3_hg38.json \
+  -c $WORK/results/2020_Chenlab_gex_V3/nextflow.config \
+  -work-dir $WORK/results/2020_Chenlab_gex_V3/nf_gex_results/work \
+  --results $WORK/results/2020_Chenlab_gex_V3/nf_gex_results \
+  --chemistry V3 \
+  /lab/work/ccrober/sw/snRNAseq-NextFlow/main.nf
+
+
+cd $WORK/results/2020_Chenlab_gex_V2/nf_gex_results
+nohup nextflow -bg run -resume \
+  -params-file $WORK/data/2020-Chenlab_gex_V2_hg38.json \
+  -c $WORK/results/2020_Chenlab_gex_V2/nextflow.config \
+  -work-dir $WORK/results/2020_Chenlab_gex_V2/nf_gex_results/work \
+  --results $WORK/results/2020_Chenlab_gex_V2/nf_gex_results \
+  --chemistry V2 \
+  /lab/work/ccrober/sw/snRNAseq-NextFlow/main.nf
+```
+
 
 ### Run nf on multiome ATAC
 ```bash
@@ -138,13 +176,47 @@ bash run.sh macs2.smk
 
 ### fGWAS
 ```bash
+#get whole islet annotations
+awk 'BEGIN {OFS="\t"} {print $1, $2-150, $2+150}' results/multiome/macs2/Sample_5124-NM-1-hg38_summits.bed > results/fgwas/annotations/hg38/wholeIslet_ATAC_300b.bed
+
+awk 'BEGIN {OFS="\t"} {print $1, $2-500, $2+500}' results/multiome/macs2/Sample_5124-NM-1-hg38_summits.bed > results/fgwas/annotations/hg38/wholeIslet_ATAC_1kb.bed
+
+
+snakemake all -n \
+  --snakefile workflow/src/reformat_ricardo_bed_for_fgwas.smk \
+  --printshellcmds \
+  --cores 1 \
+  > logs/reformat_ricardo_bed_for_fgwas.log 2>&1 &
+
 bash run.sh fgwas.smk
 ```
 
 ### Plots for HIRN/ASHG
 ```bash
-Rscript workflow/scripts/liger_plots_broad_clusters.R
+sbatch workflow/scripts/run_liger_plots.slurm
+
+Rscript workflow/scripts/liger_plots_broad_clusters.R \
+  --liger_obj results/liger/multiome_5GEX/liger_obj_clusters.rds \
+  --barcode_to_cell_type results/liger/multiome_5GEX/barcode_to_cluster_to_cell_type.csv \
+  --outdir results/plots/multiome_5GEX
 ```
+
+### Browser colors
+#Endocrine == red/orange/yellow
+alpha = 255,191,0
+beta = 255,87,51
+gamma = 242,140,40
+delta = 255,172,28
+
+#Exocrine
+acinar = 128,222,234
+
+#Other
+ductal = 121,85,72
+endothelial = 144,164,174
+stellate = 76,175,80
+immune = 171,71,188
+
 
 
 

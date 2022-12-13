@@ -168,7 +168,7 @@ annot_sets[["Ricardo_clusters"]] = c(paste0(ricardo_clusters,"_summits.ext150.mi
                                     paste0(ricardo_clusters,"_summits.ext150.reproducible"),
                                     paste0(ricardo_clusters,"_summits.ext150.cluster_specific"),
                                     paste0(ricardo_clusters,"_summits.ext150.noblacklist"),
-                                    "wholeIslet_ATAC_300b"
+                                    "wholeIslet_Ricardo_clusters"
                                   )
 ## Annot source files
 annot_list = list()
@@ -182,6 +182,7 @@ for (c in my_clusters) {
 annot_list[["hg38"]][["wholeIslet_tCRE"]] = "results/fgwas/annotations/wholeIslet_tCRE.bed"
 annot_list[["hg38"]][["wholeIslet_ATAC_300b"]] = "results/fgwas/annotations/wholeIslet_ATAC_300b.bed"
 annot_list[["hg38"]][["wholeIslet_ATAC_1kb"]] = "results/fgwas/annotations/wholeIslet_ATAC_1kb.bed"
+annot_list[["hg38"]][["wholeIslet_Ricardo_clusters"]] = "results/fgwas/annotations/wholeIslet_Ricardo_clusters.bed"
 
 
 annot_list[["hg19"]] = list()

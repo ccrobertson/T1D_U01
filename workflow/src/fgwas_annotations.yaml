@@ -77,6 +77,7 @@ fgwas_sets:
   - SST_summits.ext150.noblacklist
   - TPSAB1_summits.ext150.noblacklist
   - VWF_summits.ext150.noblacklist
+  - wholeIslet_Ricardo_clusters
 fgwas_annotation_sources:
   hg38:
     acinar_tCRE: results/scafe_old/scafe_by_cluster/acinar/annotate/acinar/bed/acinar.CRE.annot.bed
@@ -109,6 +110,7 @@ fgwas_annotation_sources:
     wholeIslet_tCRE: results/fgwas/annotations/wholeIslet_tCRE.bed
     wholeIslet_ATAC_300b: results/fgwas/annotations/wholeIslet_ATAC_300b.bed
     wholeIslet_ATAC_1kb: results/fgwas/annotations/wholeIslet_ATAC_1kb.bed
+    wholeIslet_Ricardo_clusters: results/fgwas/annotations/wholeIslet_Ricardo_clusters.bed
   hg19:
     INS_summits.ext150.min2: results/fgwas/annotations/ricardo_annots_hg19_reformatted/INS_summits.ext150.min2.bed.bed3
     INS_summits.ext150.reproducible: results/fgwas/annotations/ricardo_annots_hg19_reformatted/INS_summits.ext150.reproducible.bed3
